@@ -1,0 +1,1 @@
+Terminal view of the pipeline run log JSON lines with stage names, seconds and status ok

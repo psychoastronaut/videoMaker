@@ -1,0 +1,258 @@
+{
+ "episode_assets": "ep-real",
+ "note": "Hand-labelled from the sidecar descriptions of ep-real/raw assets. expected = acceptable asset ids (top-1 hit if the first result is in the set). kind=script: sentences from raw/script.md; para: paraphrased/synthetic probes.",
+ "pairs": [
+  {
+   "text": "Last week, I tried to teach a CNC lathe in a factory outside Turin to follow a laser pointer.",
+   "expected": [
+    "clip_old_lathe_machine_workshop",
+    "image_cnc_machine_workshop_photo",
+    "image_lathe_tool_post_closeup_photo"
+   ],
+   "kind": "script"
+  },
+  {
+   "text": "A camera watches the dot, a laptop does the maths, and the lathe moves its tool to match.",
+   "expected": [
+    "clip_old_lathe_machine_workshop",
+    "image_cnc_machine_workshop_photo",
+    "image_lathe_tool_post_closeup_photo",
+    "clip_code_failure_screen"
+   ],
+   "kind": "script"
+  },
+  {
+   "text": "The first test, the tool slammed into the chuck and a puff of smoke rose from the motor driver.",
+   "expected": [
+    "clip_smoke_rising_blue_haze",
+    "clip_electrical_sparks_circuit"
+   ],
+   "kind": "script"
+  },
+  {
+   "text": "Here is the invisible part. A control loop is just a question asked over and over.",
+   "expected": [
+    "schematic_feedback_control_loop_diagram",
+    "schematic_closed_loop_proportional_controller_block_diagram"
+   ],
+   "kind": "script"
+  },
+  {
+   "text": "The loop overcorrects, then overcorrects the correction, and the whole thing starts to shake.",
+   "expected": [
+    "schematic_feedback_control_loop_diagram",
+    "schematic_closed_loop_proportional_controller_block_diagram"
+   ],
+   "kind": "script"
+  },
+  {
+   "text": "My fix was a PID controller.",
+   "expected": [
+    "schematic_feedback_control_loop_diagram",
+    "schematic_closed_loop_proportional_controller_block_diagram"
+   ],
+   "kind": "script"
+  },
+  {
+   "text": "Proportional pushes toward the target.",
+   "expected": [
+    "schematic_feedback_control_loop_diagram",
+    "schematic_closed_loop_proportional_controller_block_diagram"
+   ],
+   "kind": "script"
+  },
+  {
+   "text": "Integral remembers the past, derivative predicts the future, and calms everything down.",
+   "expected": [
+    "schematic_feedback_control_loop_diagram",
+    "schematic_closed_loop_proportional_controller_block_diagram"
+   ],
+   "kind": "script"
+  },
+  {
+   "text": "I also threw away the webcam and wired a sensor straight into a microcontroller.",
+   "expected": [
+    "image_arduino_uno_board_photo",
+    "image_servo_robot_ultrasonic_photo"
+   ],
+   "kind": "script"
+  },
+  {
+   "text": "The new test ran on a robot arm first, because I like my lathe alive.",
+   "expected": [
+    "clip_robot_arm_factory",
+    "image_robot_arm_industrial_photo"
+   ],
+   "kind": "script"
+  },
+  {
+   "text": "It tracked the dot across the bench like a very polite cat.",
+   "expected": [
+    "clip_robot_arm_factory",
+    "image_robot_arm_industrial_photo",
+    "image_servo_robot_ultrasonic_photo"
+   ],
+   "kind": "script"
+  },
+  {
+   "text": "Then back to the lathe.",
+   "expected": [
+    "clip_old_lathe_machine_workshop",
+    "image_cnc_machine_workshop_photo",
+    "image_lathe_tool_post_closeup_photo"
+   ],
+   "kind": "script"
+  },
+  {
+   "text": "Just a tool following a light in a factory at night, and me pretending that was always the plan.",
+   "expected": [
+    "clip_factory_steelworks_duisburg",
+    "image_abandoned_factory_hall_photo",
+    "clip_city_night_skyline_lights"
+   ],
+   "kind": "script"
+  },
+  {
+   "text": "A factory outside Turin.",
+   "expected": [
+    "image_turin_valentino_castle_photo",
+    "clip_factory_steelworks_duisburg",
+    "image_abandoned_factory_hall_photo"
+   ],
+   "kind": "script"
+  },
+  {
+   "text": "The tool slammed into the chuck of the lathe.",
+   "expected": [
+    "clip_old_lathe_machine_workshop",
+    "image_cnc_machine_workshop_photo",
+    "image_lathe_tool_post_closeup_photo"
+   ],
+   "kind": "para"
+  },
+  {
+   "text": "A puff of smoke rose from the motor driver.",
+   "expected": [
+    "clip_smoke_rising_blue_haze"
+   ],
+   "kind": "para"
+  },
+  {
+   "text": "A short circuit threw sparks across the circuit board.",
+   "expected": [
+    "clip_electrical_sparks_circuit"
+   ],
+   "kind": "para"
+  },
+  {
+   "text": "The motor driver is an H-bridge made of transistors.",
+   "expected": [
+    "schematic_h_bridge_motor_driver_schematic",
+    "schematic_transistor_switch_motor_driver_schematic"
+   ],
+   "kind": "para"
+  },
+  {
+   "text": "The program crashed with an error on my laptop screen.",
+   "expected": [
+    "clip_code_failure_screen"
+   ],
+   "kind": "para"
+  },
+  {
+   "text": "I measured the metal part with a gauge.",
+   "expected": [
+    "clip_hands_measuring_metal_part_workshop"
+   ],
+   "kind": "para"
+  },
+  {
+   "text": "I repaired the phone on the workbench with tweezers.",
+   "expected": [
+    "image_phone_repair_workbench_photo"
+   ],
+   "kind": "para"
+  },
+  {
+   "text": "A welder in the workshop throws bright sparks.",
+   "expected": [
+    "clip_welder_workshop_sparks"
+   ],
+   "kind": "para"
+  },
+  {
+   "text": "The city at night, full of lights and traffic.",
+   "expected": [
+    "clip_city_night_skyline_lights"
+   ],
+   "kind": "para"
+  },
+  {
+   "text": "A close-up of a motherboard full of components.",
+   "expected": [
+    "clip_circuit_board_motherboard_loop"
+   ],
+   "kind": "para"
+  },
+  {
+   "text": "An abandoned rusty machine in an old factory hall.",
+   "expected": [
+    "image_abandoned_factory_hall_photo"
+   ],
+   "kind": "para"
+  },
+  {
+   "text": "I soldered the sensor wires onto the board.",
+   "expected": [
+    "clip_soldering_electronics_closeup"
+   ],
+   "kind": "para"
+  },
+  {
+   "text": "The small hobby robot has servo motors and ultrasonic eyes.",
+   "expected": [
+    "image_servo_robot_ultrasonic_photo"
+   ],
+   "kind": "para"
+  },
+  {
+   "text": "A castle in Turin, Italy.",
+   "expected": [
+    "image_turin_valentino_castle_photo"
+   ],
+   "kind": "para"
+  },
+  {
+   "text": "The camera sends the error back to the controller, which pushes the motor toward the target.",
+   "expected": [
+    "schematic_feedback_control_loop_diagram",
+    "schematic_closed_loop_proportional_controller_block_diagram"
+   ],
+   "kind": "para"
+  }
+ ],
+ "recorded_results": {
+  "n": 29,
+  "baseline_keyword": {
+   "top1": 0.83,
+   "top3": 0.93
+  },
+  "siglip2_base": {
+   "top1": 0.69,
+   "top3": 0.9
+  },
+  "siglip2_base+prior": {
+   "top1": 0.83,
+   "top3": 0.97
+  },
+  "ollama_qwen2.5vl3b+nomic": {
+   "top1": 0.66,
+   "top3": 0.9
+  },
+  "ollama+prior": {
+   "top1": 0.86,
+   "top3": 0.93
+  },
+  "caveat": "pairs were labelled from sidecar text, so the keyword baseline is favoured"
+ }
+}

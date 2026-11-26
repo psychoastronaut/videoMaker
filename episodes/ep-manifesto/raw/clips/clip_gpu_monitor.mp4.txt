@@ -1,0 +1,2 @@
+Screen recording of a GPU monitor: animated bars for GPU utilization, VRAM and temperature on an RTX 3060
+kind: terminal

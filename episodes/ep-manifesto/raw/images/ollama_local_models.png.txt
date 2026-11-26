@@ -1,0 +1,1 @@
+Terminal listing of local Ollama models qwen2.5 3b 7b 14b instruct, qwen2.5vl, nomic-embed-text with sizes in GB

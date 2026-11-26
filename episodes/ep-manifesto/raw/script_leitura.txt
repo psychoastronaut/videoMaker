@@ -1,0 +1,83 @@
+Welcome to Psycho Astronaut (SAI-ko AS-tro-nót). ...
+
+Episode zero.
+The manifesto. ...
+
+This channel is experimental engineering
+with a budget of zero dollars. ...
+We call it conscious jank (KÓN-chus DJÉNK).
+Duct tape,
+but with version control. ...
+
+Rule one.
+Everything runs locally.
+No cloud.
+No subscriptions.
+One graphics card. ...
+
+This video was not edited by a person. ...
+
+It was assembled by a Python (PAI-thon) pipeline. ...
+
+Step one.
+Faster Whisper (FÁS-ter UÍS-per) listens to my voice
+and writes down every word.
+Step two.
+An index reads every asset I own,
+and labels it.
+Step three.
+SigLIP two (SIG-lip tu) matches each sentence to a picture,
+by meaning. ...
+Then a local Qwen (TCHU-en) model, running on Ollama (o-LÁ-ma),
+plans the cuts,
+five beats at a time.
+Hungarian (RAN-gá-ri-an) assignment makes sure the same photo never shows up twice.
+Mostly. ...
+
+Stock footage?
+Only public domain, with a license audit.
+Lawyers, relax.
+Backgrounds are removed by Rembg BiRefNet (REM-bi-gí BAI-ref-nét).
+A quality gate rejects the ugly ones.
+Real ESRGAN (RÍ-al ES-AR-gan) upscales the blurry photos.
+Vidstab (VÍD-stab) calms the shaky clips. ...
+
+Then FFmpeg (éf-éf-ÉM-peg) renders everything on NVENC (en-VÉNK),
+with cache and transitions.
+Loudnorm (LAUD-norm) fixes the volume.
+The terminal theme adds scanlines and glitch. ...
+
+Proof?
+This is a video about the Hubble servicing mission.
+Same pipeline.
+Real NASA footage,
+all public domain. ...
+It is not perfect.
+Sometimes I say telescope,
+and it shows a decorative mirror
+with flowers. ...
+
+And yes,
+it crashes sometimes. ...
+Out of memory.
+Of course.
+That is the whole show. ...
+
+But it is not fully automated.
+Not even close. ...
+The ideas are human.
+The script is human.
+The voice is human,
+sorry. ...
+The pipeline only does the boring part.
+I decide what to say.
+The machine decides where the pictures go. ...
+
+All of it,
+on a single RTX (AR-ti-éks) three thousand sixty. ...
+The code is open.
+The footage is public domain.
+The budget is zero. ...
+Subscribe,
+or don't.
+The pipeline will not take it personally.

@@ -1,0 +1,1 @@
+Neon microcontroller dev board icon (ESP32-like) with antenna module, pins and USB port, transparent background

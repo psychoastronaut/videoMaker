@@ -1,0 +1,359 @@
+# Visual theme: psycho_terminal = psychoastronaut.xyz look (near-black navy, phosphor-green neon,
+# cyan/magenta accents, monospace pixel font, terminal tags); classic = original blue look.
+# Fonts: assets/fonts (Share Tech Mono + VT323, SIL OFL 1.1; licences alongside).
+theme: psycho_terminal
+
+pipeline:
+  resolution:
+    width: 1920
+    height: 1080
+  fps: 30
+  video_codec: "h264_nvenc"   # falls back to libx264 automatically if NVENC is unusable
+  audio_codec: "aac"
+  preset: "p4"                # NVENC preset (p1..p7)
+  x264_preset: "medium"       # used when libx264 is the encoder
+  crf: 18                     # libx264 -crf / NVENC -cq
+  audio_sample_rate: 48000
+  audio_bitrate: "192k"
+
+llm:
+  # OpenAI-compatible endpoint (Ollama default). Env overrides: LLM_BASE_URL, LLM_MODEL.
+  base_url: "http://localhost:11434/v1"
+  model: "qwen2.5:14b-instruct"
+  temperature: 0.3
+  max_tokens: 6000
+  timeout: 150               # per request (enough for 14B first tokens on this GPU)
+  total_timeout: 300         # overall Stage 3 LLM budget; then the deterministic planner runs
+  retries: 2                 # transient-error retries and validation re-asks
+  structured: true           # Ollama native /api/chat with JSON-schema `format` (enums, exact counts); other servers use /v1 json_object
+  # native_api: "http://localhost:11434"   # default: base_url without /v1 (env LLM_NATIVE_API)
+  num_ctx: 4096              # options.num_ctx for native calls (chunk prompts are small)
+  chunk_beats: 5
+  chunk_retries: 2           # re-asks (validation error fed back) before a chunk falls back
+
+staging:
+  cut_pacing:
+    min_seconds: 3.0
+    max_seconds: 6.0
+    default_hold: 4.0
+  hold_on_keywords:           # beats mentioning these hold longer and prefer split_schematic
+    - "schematic"
+    - "diagram"
+    - "wiring"
+    - "circuit board"
+  pool_stock_ratio: 0.45       # stock share of beats when the pre-fetched pool has items
+  stock_ratio: 0.25            # max share of beats the deterministic planner may send to stock
+  entities:                    # contextual B-roll: real photos of places/machines named in the narration
+    enabled: true
+    stock_ratio: 0.35          # stock share used when the narration names entities
+    # Words that make a line "about a thing": the planner builds a query from the keyword plus
+    # a neighbouring noun or Capitalised name ("Tokyo skyline", "CNC lathe") and fetches a
+    # landscape photo. Capitalised names mid-sentence (Tokyo, Eiffel Tower) are detected
+    # automatically. Edit/extend this list for your topics.
+    keywords: [city, skyline, harbor, port, airport, station, factory, warehouse, mine, dam,
+               bridge, tower, stadium, castle, temple, mountain, volcano, desert, island,
+               rocket, satellite, spacecraft, engine, turbine, reactor, drone, robot, lathe,
+               press, crane, truck, train, ship, aircraft, helicopter, submarine, tractor,
+               "power plant", "wind farm", "data center", "assembly line", "cargo ship",
+               "space station", "launch pad", "circuit board", workshop, laboratory]
+  beat_pacing:
+    min_beat_duration: 1.9     # shorter beats are merged into a neighbour
+    max_beat_duration: 6.0     # longer beats are split on pauses
+    # target [min, max] seconds per beat style (deterministic planner)
+    durations:
+      hype: [2.0, 3.5]
+      fail: [2.0, 3.5]
+      normal: [3.0, 5.0]
+      deadpan: [3.0, 5.0]
+      technical: [3.5, 5.5]
+      hold: [4.0, 6.0]         # beats about a diagram/demo the viewer should read
+    tone_keywords:
+      fail:
+        - "fail"
+        - "broke"
+        - "burned"
+        - "exploded"
+        - "caught fire"
+        - "short circuit"
+        - "shorted"
+        - "smoke"
+        - "didn't work"
+        - "failed"
+        - "error"
+        - "crash"
+        - "broken"
+        - "janky"
+        - "hack"
+        - "duct tape"
+        - "workaround"
+        - "magic smoke"
+        - "sparks"
+        - "melted"
+        - "fried"
+        - "blown"
+        - "didn't"
+        - "unexpected"
+        - "surprise"
+        - "oops"
+        - "whoops"
+        - "mistake"
+        - "bug"
+        - "glitch"
+        - "malfunction"
+        - "overheat"
+        - "overload"
+        - "tripped"
+      technical:
+        - "signal"
+        - "latency"
+        - "protocol"
+        - "firmware"
+        - "code"
+        - "circuit"
+        - "voltage"
+        - "current"
+        - "microcontroller"
+        - "api"
+        - "buffer"
+        - "queue"
+        - "thread"
+        - "model"
+        - "control loop"
+        - "pid"
+        - "motor driver"
+        - "training"
+        - "inference"
+        - "impedance"
+        - "frequency"
+        - "digital"
+        - "analog"
+        - "gpio"
+        - "pcb"
+      deadpan:
+        - "of course"
+        - "apparently"
+        - "obviously"
+        - "as expected"
+        - "somehow"
+        - "turns out"
+        - "naturally"
+        - "as it turns out"
+        - "in theory"
+      hype:
+        - "worked"
+        - "success"
+        - "finally"
+        - "it works"
+        - "magic"
+        - "beautiful"
+        - "perfect"
+        - "elegant"
+        - "brilliant"
+        - "genius"
+        - "amazing"
+        - "wow"
+        - "incredible"
+        - "powerful"
+        - "breakthrough"
+      invisible_mechanics:
+        - "invisible"
+        - "abstract"
+        - "concept"
+        - "principle"
+        - "theory"
+        - "mechanism"
+        - "how it works"
+        - "under the hood"
+        - "behind the scenes"
+        - "internally"
+        - "fundamentally"
+        - "signal"
+        - "data flow"
+        - "information"
+        - "communication"
+        - "protocol"
+        - "handshake"
+        - "synchronization"
+
+semantic:
+  # Content-aware matching of narration <-> visuals (local only, no cloud APIs).
+  #   auto   = siglip when `pip install -e '.[semantic]'` is done, else ollama, else none
+  #   siglip = SigLIP2 image/text embeddings (fast, best for objects/scenes)
+  #   ollama = qwen2.5vl captions + nomic-embed-text (no extra Python deps, slower indexing)
+  #   none   = keyword matching only (the v1 behaviour)
+  backend: auto
+  global_assignment: true      # episode-wide beat x asset assignment (diversity, reuse caps, clip share)
+  reuse_window: 22             # s: the same asset is not reused inside this window
+  reuse_caps: {photo: 3, diagram: 2, clip: 3}   # max uses per asset
+  diversity:                   # reuse variety (src/assignment.py families, src/views.py views)
+    enabled: true
+    near_dup: 0.9              # embedding cosine above which two assets look the same (one family)
+    family_cap: 4              # max total uses of one near-duplicate family
+    fresh_bonus: 0.10          # score bonus for an asset not yet used
+    max_family_loss: 0.06      # a near-dup clash is only resolved if the swap loses <= this score
+    photo_crops: true          # 2nd+ use of a large photo -> distinct detail crop (crop_region)
+    crop_scale: 0.6            # fraction of the picture a crop keeps (>= 1700 px wide)
+    clip_segments: true        # 2nd+ use of a clip -> another non-overlapping segment
+    diagram_highlights: true   # 2nd+ use of a diagram -> its next sidecar `highlight:` region
+  min_clip_share: 0.25         # at least this share of beats use a video clip (when clips match)
+  clip_bonus: 0.07             # extra rank for clips when the line describes an action/process
+  top_k: 5                     # local candidates retrieved per beat (the LLM picks among them)
+  min_score: {siglip: 0.10, ollama: 0.55}   # beats scoring below are flagged for review
+  prior_weight: null          # weight of the filename/sidecar keyword prior (null = per backend)
+  merge_margin: 0.03           # adjacent keyframes within this of the best merge into one trim
+  shot_threshold: 27.0         # PySceneDetect ContentDetector threshold
+  verify_stock: true           # Stage 4: reject stock candidates that do not look like the query
+  stock_requeries: 2           # LLM query rewrites before falling back to local media
+  siglip:
+    model: "google/siglip2-base-patch16-224"   # or google/siglip2-so400m-patch14-384 (2.2 GB)
+    device: auto               # auto|cuda|cpu (CPU fallback on OOM; shared with Ollama)
+  ollama:
+    base_url: "http://localhost:11434"
+    caption_model: "qwen2.5vl:3b"
+    embed_model: "nomic-embed-text"   # `ollama pull nomic-embed-text` (~270 MB)
+
+transcription:
+  model_size: "small"
+  model_dir: "~/.cache/videomaker/whisper"
+  language: "en"
+  beam_size: 5
+  vad_filter: true
+  vad_threshold: 0.4
+  vad_silence_ms: 200
+  min_silence_duration_ms: 600
+  temperature: 0.0
+
+assets:
+  supported_video_extensions:
+    - ".mp4"
+    - ".mov"
+    - ".avi"
+    - ".mkv"
+    - ".webm"
+  supported_image_extensions:
+    - ".png"
+    - ".jpg"
+    - ".jpeg"
+    - ".webp"
+    - ".bmp"
+  supported_schematic_extensions:
+    - ".png"
+    - ".jpg"
+    - ".jpeg"
+    - ".webp"
+
+stock_media:
+  enabled: true               # false = local assets only (no prefetch/fetch, no stock beats)
+  topup:                      # small library (< ratio distinct looks per beat): free stock for the weakest beats
+    enabled: true
+    ratio: 1.0
+    max_items: 5
+    below: 1.2                # only beats scoring below this x semantic min_score
+  openverse_api_url: "https://api.openverse.org/v1/"
+  openverse_api_key: ""        # optional; env OPENVERSE_API_KEY also works
+  wikimedia_api_url: "https://commons.wikimedia.org/w/api.php"
+  pexels_api_key: ""           # env PEXELS_API_KEY
+  pixabay_api_key: ""          # env PIXABAY_API_KEY
+  # Pexels/Pixabay (photos AND videos) use their own free platform licenses (not CC0/PD). They
+  # are used when an API key is present, allow_platform_licenses is true and strict_cc0_only is
+  # false. The exact license is recorded in licenses_audit.json and flagged in the timeline as
+  # "free-license (non-CC0)". Set strict_cc0_only: true to restrict stock to CC0/PD sources.
+  allow_platform_licenses: true
+  strict_cc0_only: false
+  video:
+    enabled: true              # fullscreen/punch stock beats prefer video
+    min_height: 720            # platform videos (Pexels/Pixabay) must be at least HD
+    min_height_open: 480       # Wikimedia/Internet Archive PD footage is often SD
+    max_height: 1080           # larger sources are downscaled when trimmed
+    max_file_mb: 80            # abort downloads above this size
+    max_clip_seconds: 12       # clips are trimmed to the beat length (+1s), never above this
+    archive_org: true          # Internet Archive movies with an explicit public-domain licenseurl
+  prefetch:                    # free-stock pool built before planning (work/stock_pool.json)
+    enabled: true
+    max_items: 24              # pool size cap (entities first, then thematic B-roll, then nouns)
+    thematic_items: 16         # on-theme B-roll (workshop, electronics, factory, city...) so
+                               # beats always have relevant free imagery; relaxed relevance gate
+  max_results_per_query: 5
+  max_image_mb: 25             # abort image downloads above this size
+  download_timeout: 30
+  min_resolution: 1280         # minimum long side in pixels
+  accepted_openverse_licenses:
+    - "cc0"
+    - "pdm"
+
+cutouts:
+  models: ["birefnet-general-lite", "isnet-general-use", "u2net"]   # MIT/Apache models, fallback chain
+  rembg_num_threads: 4
+  max_cutout_height_ratio: 0.45   # cutout height as a fraction of the frame height
+  callout_font_size: 46           # badge text
+  lower_third_font_size: 48
+  grid_bg_opacity: 0.15
+
+render:
+  # split_schematic media-panel width (px @1920; diagram gets the rest). A sidecar line
+  # "kind: terminal" selects the matching entry; "default" (640) is used otherwise.
+  split_layout:
+    default: {left_w: 640}
+    terminal: {left_w: 912}
+  generate_srt: false   # true = also write out/final_cut.srt (subtitles are never burned in)
+  loudness_target: -16.0
+  loudness_true_peak: -1.5
+  loudness_lra: 11.0
+  # motion
+  drift_zoom: 0.05               # Ken Burns total zoom for normal beats
+  hype_drift_zoom: 0.09
+  technical_drift_zoom: 0.025
+  video_drift: false             # true = also Ken Burns drift on video clips (default: static, real footage already moves)
+  punch_zoom: 1.18               # punch_in_emphasis final zoom
+  punch_ramp_seconds: 0.25       # ease-out duration of the punch, then hold
+  micro_punch_zoom: 1.06         # fail/emphasis beats on other templates
+  micro_punch_seconds: 0.15
+  outro: true                    # hold + fade to black after the last spoken word
+  outro_hold: 1.0                # seconds of picture after the voiceover ends (video+audio = voiceover + hold)
+  outro_fade: 0.8                # video fade-out to black and audio fade-out over the final seconds
+  intro_fade: 0.3                # fade in from black/silence at the start (0 = off)
+  entrance_seconds: 0.25         # overlay slide/fade-in
+  crt: subtle                    # off | subtle | strong: green-cyan grade, scanlines, vignette, light RGB split (strong adds bloom)
+  branding: true                 # boot-sequence intro/outro cards (video = intro + voiceover + outro; false keeps outro_hold)
+  intro_seconds: 3.0           # typing completes by ~70%, then a short hold + glitch into the first beat
+  outro_seconds: 3.0             # replaces outro_hold when branding is on
+  branding_sound: true           # synthesized boot hum/ticks/chirp/glitch/power-down on the intro/outro (no downloads)
+  branding_sound_gain: 1.0       # linear gain of that sound (voice stays at loudness target)
+  hud: false                     # corner HUD: blinking REC dot + T+mm:ss timecode (dim green)
+  glitch_transitions: true       # hype/fail/chapter joins use glitch (pixelize/slice/hblur) xfades
+  clip_audio_gain: 1.0           # linear gain of clip audio (beats with clip_audio on|duck; per-beat clip_audio_gain overrides)
+  # transitions between beats (ffmpeg xfade; per-beat `transition`/`transition_duration` in scene_plan.json
+  # override; names: none crossfade dissolve fadeblack fadewhite zoomin smoothleft slideleft wipeleft)
+  transitions: true              # false = hard cuts everywhere
+  transition_duration: 0.35      # base seconds (x0.6 hype/fail, x1.15 technical/deadpan); < 40% of the shorter beat
+  transition_max_group: 6        # beats joined per xfade graph
+  workers: 3                     # parallel beat encodes (NVENC: ~1.5x at best, keep <= 3); cache: work/render_cache
+
+audio:                            # voice chain (ffmpeg only), runs before Stage 1: `audio <ep> [--report]`
+  enabled: auto                   # auto = on when raw/voiceover.* exists | true | false
+  preset: podcast                 # podcast | gentle | aggressive
+  target_lufs: -16.0
+  true_peak: -1.5
+  max_pause: 0.8                  # silences longer than this (s) are shortened...
+  keep_pause: 0.35                # ...to this (natural pauses below max_pause are untouched)
+  hum_hz: 60                      # mains hum notch (podcast/aggressive); null = off
+  rnnoise_model: null             # optional path to an arnndn .rnnn model (extra denoise)
+
+stabilize:                        # shake smoothing of source clips (ffmpeg vidstab; OpenCV fallback)
+  enabled: auto                   # auto = only clips whose shake score > threshold | true = all | false
+  threshold: 1.25                 # score = px @1920 of high-frequency camera jitter (steady <0.7, shaky >1.3)
+  smoothing: 15                   # frames of camera-path low-pass
+  shakiness: 5                    # vidstab detection sensitivity 1..10
+  optzoom: 1                      # 1 = one static optimal zoom hides black borders
+  zoom: 0                         # extra zoom percent
+
+upscale:                          # local AI upscaling of small photos (optional: pip install -e '.[upscale]')
+  enabled: auto                   # auto = on when the extra is installed; true | false
+  model_dir: "~/.cache/videomaker/models"   # RealESRGAN_x4plus.pth (BSD-3), one-time download
+  min_long_side: 1400             # photos whose long side is already >= this are left alone
+  max_long_side: 1920             # never upscale beyond this
+  max_factor: 2.0                 # target long side <= 2x the original (avoids over-processing)
+  tile: 256                       # input tile px; shrinks on GPU OOM, then falls back to CPU
+  blend: 0.7                      # 1.0 = pure AI; lower mixes in a plain Lanczos resize (gentler)
+  schematics: false               # also upscale raw/schematics diagrams
+  flat_graphics: false            # also upscale flat-colour graphics / logos

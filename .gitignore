@@ -1,0 +1,62 @@
+# Python / tooling
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+.venv/
+.venv-tts/
+venv/
+env/
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+*.cache/
+
+# Secrets
+.env
+
+# Models and downloads (fetched on first use)
+*.onnx
+*.pt
+*.pth
+*.safetensors
+*.gguf
+*.bin
+models/
+
+# Episode outputs and media (keep only configs, scripts, sidecars)
+episodes/*/work/
+episodes/*/out/
+episodes/*/raw/**/*.mp4
+episodes/*/raw/**/*.mov
+episodes/*/raw/**/*.mkv
+episodes/*/raw/**/*.webm
+episodes/*/raw/**/*.avi
+episodes/*/raw/**/*.jpg
+episodes/*/raw/**/*.jpeg
+episodes/*/raw/**/*.png
+episodes/*/raw/**/*.webp
+episodes/*/raw/voiceover*
+
+# Generated media / logs anywhere
+*.mp4
+*.mkv
+*.avi
+*.mov
+*.wav
+*.ogg
+*.mp3
+*.cast
+*.log
+
+# Scratch json (plans, jit dumps) but keep test fixtures and package data
+/*.json
+!/pyproject.toml
+
+# Keep only the showcase episodes in the repo
+episodes/*
+!episodes/ep-hubble/
+!episodes/ep-manifesto/

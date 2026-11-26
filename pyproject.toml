@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "videomaker"
+version = "0.1.0"
+description = "AI-powered video creation pipeline for science/engineering YouTube channels"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+dependencies = [
+    "faster-whisper>=1.0.0",
+    "pydantic>=2.0.0",
+    "typer>=0.9.0",
+    "httpx>=0.27.0",
+    "rembg>=2.0.50",
+    "pillow>=10.0.0",
+    "pyyaml>=6.0",
+    "rich>=13.0.0",
+    "numpy>=1.24.0",
+    "onnxruntime>=1.16.0",
+]
+
+[project.optional-dependencies]
+semantic = [          # SigLIP2 backend (tested: Python 3.14, torch 2.15, transformers 5.24)
+    "torch>=2.15,<2.16",
+    "transformers==5.24.1",
+    "scenedetect>=0.6.4",
+    "opencv-python-headless>=5.1",
+    "sentencepiece",
+    "protobuf",
+]
+upscale = [           # Real-ESRGAN via spandrel (tested: Python 3.14, torch 2.15)
+    "torch>=2.15,<2.16",
+    "torchvision>=0.29,<0.30",
+    "spandrel==0.4.2",
+    "einops>=0.8",
+]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+]
+
+[project.scripts]
+videomaker = "src.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

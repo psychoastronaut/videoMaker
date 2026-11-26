@@ -1,0 +1,1 @@
+Terminal log of a real ffmpeg h264_nvenc encode of a 1920x1080 test source, speed 5.87x

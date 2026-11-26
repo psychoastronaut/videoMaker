@@ -1,0 +1,338 @@
+pipeline:
+  resolution:
+    width: 1920
+    height: 1080
+  fps: 30
+  video_codec: h264_nvenc
+  audio_codec: aac
+  preset: p4
+  x264_preset: medium
+  crf: 18
+  audio_sample_rate: 48000
+  audio_bitrate: 192k
+llm:
+  base_url: http://localhost:11434/v1
+  model: qwen2.5:14b-instruct
+  temperature: 0.3
+  max_tokens: 6000
+  timeout: 150
+  total_timeout: 300
+  retries: 2
+  structured: true
+  num_ctx: 4096
+  chunk_beats: 5
+  chunk_retries: 2
+staging:
+  cut_pacing:
+    min_seconds: 3.0
+    max_seconds: 6.0
+    default_hold: 4.0
+  hold_on_keywords:
+  - schematic
+  - diagram
+  - wiring
+  - circuit board
+  pool_stock_ratio: 0.45
+  stock_ratio: 0.25
+  entities:
+    enabled: true
+    stock_ratio: 0.35
+    keywords:
+    - city
+    - skyline
+    - harbor
+    - port
+    - airport
+    - station
+    - factory
+    - warehouse
+    - mine
+    - dam
+    - bridge
+    - tower
+    - stadium
+    - castle
+    - temple
+    - mountain
+    - volcano
+    - desert
+    - island
+    - rocket
+    - satellite
+    - spacecraft
+    - engine
+    - turbine
+    - reactor
+    - drone
+    - robot
+    - lathe
+    - press
+    - crane
+    - truck
+    - train
+    - ship
+    - aircraft
+    - helicopter
+    - submarine
+    - tractor
+    - power plant
+    - wind farm
+    - data center
+    - assembly line
+    - cargo ship
+    - space station
+    - launch pad
+    - circuit board
+    - workshop
+    - laboratory
+  beat_pacing:
+    min_beat_duration: 1.2
+    max_beat_duration: 6.0
+    durations:
+      hype:
+      - 1.5
+      - 3.0
+      fail:
+      - 1.5
+      - 3.0
+      normal:
+      - 2.5
+      - 4.5
+      deadpan:
+      - 2.5
+      - 4.5
+      technical:
+      - 3.0
+      - 5.0
+      hold:
+      - 4.0
+      - 6.0
+    tone_keywords:
+      fail:
+      - fail
+      - broke
+      - burned
+      - exploded
+      - caught fire
+      - short circuit
+      - shorted
+      - smoke
+      - didn't work
+      - failed
+      - error
+      - crash
+      - broken
+      - janky
+      - hack
+      - duct tape
+      - workaround
+      - magic smoke
+      - sparks
+      - melted
+      - fried
+      - blown
+      - didn't
+      - unexpected
+      - surprise
+      - oops
+      - whoops
+      - mistake
+      - bug
+      - glitch
+      - malfunction
+      - overheat
+      - overload
+      - tripped
+      technical:
+      - signal
+      - latency
+      - protocol
+      - firmware
+      - code
+      - circuit
+      - voltage
+      - current
+      - microcontroller
+      - api
+      - buffer
+      - queue
+      - thread
+      - model
+      - control loop
+      - pid
+      - motor driver
+      - training
+      - inference
+      - impedance
+      - frequency
+      - digital
+      - analog
+      - gpio
+      - pcb
+      deadpan:
+      - of course
+      - apparently
+      - obviously
+      - as expected
+      - somehow
+      - turns out
+      - naturally
+      - as it turns out
+      - in theory
+      hype:
+      - worked
+      - success
+      - finally
+      - it works
+      - magic
+      - beautiful
+      - perfect
+      - elegant
+      - brilliant
+      - genius
+      - amazing
+      - wow
+      - incredible
+      - powerful
+      - breakthrough
+      invisible_mechanics:
+      - invisible
+      - abstract
+      - concept
+      - principle
+      - theory
+      - mechanism
+      - how it works
+      - under the hood
+      - behind the scenes
+      - internally
+      - fundamentally
+      - signal
+      - data flow
+      - information
+      - communication
+      - protocol
+      - handshake
+      - synchronization
+semantic:
+  backend: siglip
+  top_k: 5
+  min_score:
+    siglip: 0.1
+    ollama: 0.55
+  prior_weight: null
+  merge_margin: 0.03
+  shot_threshold: 27.0
+  verify_stock: true
+  stock_requeries: 2
+  siglip:
+    model: google/siglip2-base-patch16-224
+    device: auto
+  ollama:
+    base_url: http://localhost:11434
+    caption_model: qwen2.5vl:3b
+    embed_model: nomic-embed-text
+transcription:
+  model_size: small
+  model_dir: ~/.cache/videomaker/whisper
+  language: en
+  beam_size: 5
+  vad_filter: true
+  vad_threshold: 0.4
+  vad_silence_ms: 200
+  min_silence_duration_ms: 600
+  temperature: 0.0
+assets:
+  supported_video_extensions:
+  - .mp4
+  - .mov
+  - .avi
+  - .mkv
+  - .webm
+  supported_image_extensions:
+  - .png
+  - .jpg
+  - .jpeg
+  - .webp
+  - .bmp
+  supported_schematic_extensions:
+  - .png
+  - .jpg
+  - .jpeg
+  - .webp
+stock_media:
+  enabled: false
+  openverse_api_url: https://api.openverse.org/v1/
+  openverse_api_key: ''
+  wikimedia_api_url: https://commons.wikimedia.org/w/api.php
+  pexels_api_key: ''
+  pixabay_api_key: ''
+  allow_platform_licenses: true
+  strict_cc0_only: false
+  video:
+    enabled: true
+    min_height: 720
+    min_height_open: 480
+    max_height: 1080
+    max_file_mb: 80
+    max_clip_seconds: 12
+    archive_org: true
+  prefetch:
+    enabled: true
+    max_items: 24
+    thematic_items: 16
+  max_results_per_query: 5
+  max_image_mb: 25
+  download_timeout: 30
+  min_resolution: 1280
+  accepted_openverse_licenses:
+  - cc0
+  - pdm
+cutouts:
+  models:
+  - birefnet-general-lite
+  - isnet-general-use
+  - u2net
+  rembg_num_threads: 4
+  max_cutout_height_ratio: 0.45
+  callout_font_size: 46
+  lower_third_font_size: 48
+  grid_bg_opacity: 0.15
+render:
+  generate_srt: false
+  loudness_target: -16.0
+  loudness_true_peak: -1.5
+  loudness_lra: 11.0
+  drift_zoom: 0.05
+  hype_drift_zoom: 0.09
+  technical_drift_zoom: 0.025
+  video_drift: false
+  punch_zoom: 1.18
+  punch_ramp_seconds: 0.25
+  micro_punch_zoom: 1.06
+  micro_punch_seconds: 0.15
+  outro: true
+  outro_hold: 1.0
+  outro_fade: 0.8
+  intro_fade: 0.3
+  entrance_seconds: 0.25
+  transitions: true
+  transition_duration: 0.35
+  transition_max_group: 6
+stabilize:
+  enabled: auto
+  threshold: 1.25
+  smoothing: 15
+  shakiness: 5
+  optzoom: 1
+  zoom: 0
+upscale:
+  enabled: auto
+  model_dir: ~/.cache/videomaker/models
+  min_long_side: 1400
+  max_long_side: 1920
+  max_factor: 2.0
+  tile: 256
+  blend: 0.7
+  schematics: false
+  flat_graphics: false

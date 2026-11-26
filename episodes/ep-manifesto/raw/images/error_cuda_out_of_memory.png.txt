@@ -1,0 +1,1 @@
+ERROR log screen: torch.OutOfMemoryError CUDA out of memory, tried to allocate 18.63 GiB on RTX 3060, magenta error lines

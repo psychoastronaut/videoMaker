@@ -1,0 +1,403 @@
+[
+ {
+  "scene": 1,
+  "line": "Nineteen ninety. NASA launches its flagship space telescope, and the first pictures come back blurry.",
+  "intended": [
+   "deployed_from_discovery",
+   "launch_pad_39b",
+   "before_after_wfpc1"
+  ],
+  "acceptable": [
+   "atlantis_launch",
+   "before_after_wfpc1",
+   "closeup",
+   "deployed_from_discovery",
+   "fisheye",
+   "flyby",
+   "launch_pad_39b",
+   "m100_through",
+   "new_solar_arrays",
+   "shuttle_releases",
+   "zoom_out"
+  ]
+ },
+ {
+  "scene": 2,
+  "line": "Not a software bug. Not a dirty lens. The mirror itself was wrong.",
+  "intended": [
+   "mirror_blank_being_ground",
+   "polishing_swirl",
+   "technicians_inspecting"
+  ],
+  "acceptable": [
+   "inspecting_hubble_primary",
+   "labelled_cutaway",
+   "mirror_blank_being_ground",
+   "mirror_in_clean_room",
+   "mirror_shape_error",
+   "polishing_swirl",
+   "technicians_inspecting"
+  ]
+ },
+ {
+  "scene": 3,
+  "line": "Meet Hubble. A bus-sized observatory circling about five hundred and forty kilometres above Earth.",
+  "intended": [
+   "hubble_in_orbit_flyby",
+   "closeup_over_clouds",
+   "fisheye"
+  ],
+  "acceptable": [
+   "approaches_endeavour",
+   "archival_hubble_on_shuttle_arm",
+   "berthed_in_endeavour",
+   "closeup_over_clouds",
+   "deployed_from",
+   "fisheye",
+   "hubble_in_orbit_flyby",
+   "labelled_cutaway",
+   "new_solar_arrays",
+   "shuttle_releases",
+   "zoom_out"
+  ]
+ },
+ {
+  "scene": 4,
+  "line": "At its heart sits a two point four metre mirror, built to focus starlight into one sharp point.",
+  "intended": [
+   "labelled_cutaway",
+   "mirror_blank_being_ground",
+   "inspecting_hubble_primary",
+   "perfect_mirror"
+  ],
+  "acceptable": [
+   "inspecting_hubble_primary",
+   "labelled_cutaway",
+   "mirror_blank_being_ground",
+   "mirror_in_clean_room",
+   "perfect_mirror",
+   "polishing_swirl",
+   "technicians_inspecting"
+  ]
+ },
+ {
+  "scene": 5,
+  "line": "NASA asked for a surface smooth to about ten nanometres. Engineers spent years grinding and polishing it.",
+  "intended": [
+   "polishing_swirl",
+   "mirror_blank_being_ground",
+   "inspecting_hubble_primary"
+  ],
+  "acceptable": [
+   "inspecting_hubble_primary",
+   "mirror_blank_being_ground",
+   "mirror_in_clean_room",
+   "polishing_swirl",
+   "technicians_inspecting"
+  ]
+ },
+ {
+  "scene": 6,
+  "line": "They nailed it. The mirror was flawlessly smooth. Just the wrong shape.",
+  "intended": [
+   "mirror_in_clean_room",
+   "technicians_inspecting",
+   "mirror_shape_error"
+  ],
+  "acceptable": [
+   "inspecting_hubble_primary",
+   "mirror_blank_being_ground",
+   "mirror_in_clean_room",
+   "mirror_shape_error",
+   "polishing_swirl",
+   "technicians_inspecting"
+  ]
+ },
+ {
+  "scene": 7,
+  "line": "Near the edge, it was ground two point two micrometres too flat. A human hair is fifty times thicker.",
+  "intended": [
+   "mirror_shape_error"
+  ],
+  "acceptable": [
+   "mirror_blank_being_ground",
+   "mirror_shape_error",
+   "perfect_mirror",
+   "polishing_swirl",
+   "spherical_aberration"
+  ]
+ },
+ {
+  "scene": 8,
+  "line": "Here is why that matters. A good mirror sends every ray, centre or edge, to the very same focus.",
+  "intended": [
+   "perfect_mirror"
+  ],
+  "acceptable": [
+   "mirror_shape_error",
+   "perfect_mirror",
+   "spherical_aberration"
+  ]
+ },
+ {
+  "scene": 9,
+  "line": "Hubble's mirror sends the edge rays to a different spot. That is called spherical aberration.",
+  "intended": [
+   "spherical_aberration"
+  ],
+  "acceptable": [
+   "mirror_shape_error",
+   "perfect_mirror",
+   "spherical_aberration"
+  ]
+ },
+ {
+  "scene": 10,
+  "line": "So every star becomes a bright point wrapped in a fuzzy halo, and most of the light lands where it should not.",
+  "intended": [
+   "star_blur_halo",
+   "before_after_wfpc1"
+  ],
+  "acceptable": [
+   "before_after_wfpc1",
+   "m100_through",
+   "spherical_aberration",
+   "star_blur_halo"
+  ]
+ },
+ {
+  "scene": 11,
+  "line": "How did nobody catch it? The mirror was checked with a test device called a null corrector.",
+  "intended": [
+   "null_corrector"
+  ],
+  "acceptable": [
+   "assembled_in_clean_room",
+   "labelled_cutaway",
+   "lockheed_clean_room",
+   "mirror_in_clean_room",
+   "null_corrector",
+   "technicians_inspecting",
+   "three_tests"
+  ]
+ },
+ {
+  "scene": 12,
+  "line": "The null corrector was assembled wrong. One lens sat one point three millimetres out of place.",
+  "intended": [
+   "null_corrector"
+  ],
+  "acceptable": [
+   "lockheed_clean_room",
+   "mirror_shape_error",
+   "null_corrector",
+   "three_tests"
+  ]
+ },
+ {
+  "scene": 13,
+  "line": "A measuring rod had a worn spot, the laser bounced off the wrong surface, and the instrument was built to match the mistake.",
+  "intended": [
+   "null_corrector"
+  ],
+  "acceptable": [
+   "assembled_in_clean_room",
+   "assembly_scaffolding",
+   "clean_room",
+   "lockheed_clean_room",
+   "null_corrector",
+   "three_tests"
+  ]
+ },
+ {
+  "scene": 14,
+  "line": "The test reported a perfect mirror. It was. For the wrong shape.",
+  "intended": [
+   "three_tests",
+   "null_corrector"
+  ],
+  "acceptable": [
+   "mirror_in_clean_room",
+   "mirror_shape_error",
+   "null_corrector",
+   "perfect_mirror",
+   "technicians_inspecting",
+   "three_tests"
+  ]
+ },
+ {
+  "scene": 15,
+  "line": "Two other tests did show the flaw. They were dismissed as less accurate.",
+  "intended": [
+   "three_tests"
+  ],
+  "acceptable": [
+   "inspecting_hubble_primary",
+   "null_corrector",
+   "technicians_inspecting",
+   "three_tests"
+  ]
+ },
+ {
+  "scene": 16,
+  "line": "Swapping a mirror in orbit was impossible. So engineers built glasses for a telescope.",
+  "intended": [
+   "corrective_optics"
+  ],
+  "acceptable": [
+   "closeup",
+   "corrective_optics",
+   "costar_installation",
+   "deployed_from",
+   "fisheye",
+   "flyby",
+   "holding_wfpc1",
+   "new_solar_arrays",
+   "zoom_out"
+  ]
+ },
+ {
+  "scene": 17,
+  "line": "If you know the exact error, you can cancel it. Add mirrors with the opposite error, and the light comes out right.",
+  "intended": [
+   "corrective_optics"
+  ],
+  "acceptable": [
+   "corrective_optics",
+   "mirror_shape_error",
+   "perfect_mirror",
+   "star_blur"
+  ]
+ },
+ {
+  "scene": 18,
+  "line": "The fix had two parts. A new camera with correction built in, and Costar, a box of small mirrors for the other instruments.",
+  "intended": [
+   "holding_wfpc1",
+   "lifts_costar",
+   "costar_installation",
+   "installing_wfpc2_artwork"
+  ],
+  "acceptable": [
+   "art_concept",
+   "corrective_optics",
+   "costar_installation",
+   "holding_wfpc1",
+   "installing_wfpc2_artwork",
+   "instrument_on_hubble",
+   "labelled_cutaway",
+   "lifts_costar",
+   "opens_hubble_instrument",
+   "spacewalk"
+  ]
+ },
+ {
+  "scene": 19,
+  "line": "December nineteen ninety-three. Space Shuttle Endeavour reaches out and catches Hubble.",
+  "intended": [
+   "approaches_endeavour",
+   "berthed_in_endeavour",
+   "shuttle_approaches_hubble_capture",
+   "archival_hubble_on_shuttle_arm"
+  ],
+  "acceptable": [
+   "approaches_endeavour",
+   "archival_hubble_on_shuttle_arm",
+   "art_concept",
+   "atlantis_launch",
+   "berthed_in_endeavour",
+   "fisheye",
+   "new_solar_arrays",
+   "shuttle_approaches_hubble_capture",
+   "shuttle_releases"
+  ]
+ },
+ {
+  "scene": 20,
+  "line": "Five spacewalks in eleven days. Astronauts swapped the hardware by hand, in orbit.",
+  "intended": [
+   "archival_spacewalk",
+   "costar_installation",
+   "lifts_costar",
+   "installing_wfpc2_artwork",
+   "instrument_on_hubble"
+  ],
+  "acceptable": [
+   "archival_spacewalk",
+   "art_concept",
+   "costar_installation",
+   "fisheye",
+   "holding_wfpc1",
+   "installing_wfpc2_artwork",
+   "instrument_on_hubble",
+   "lifts_costar",
+   "neutral_buoyancy",
+   "opens_hubble_instrument",
+   "training_underwater"
+  ]
+ },
+ {
+  "scene": 21,
+  "line": "January nineteen ninety-four. The new view of galaxy M one hundred is razor sharp.",
+  "intended": [
+   "before_after_wfpc1",
+   "m100_through"
+  ],
+  "acceptable": [
+   "before_after_wfpc1",
+   "hourglass",
+   "lagoon",
+   "m100_through",
+   "star_blur"
+  ]
+ },
+ {
+  "scene": 22,
+  "line": "Hubble went on to spend three decades rewriting astronomy.",
+  "intended": [
+   "lagoon",
+   "hourglass"
+  ],
+  "acceptable": [
+   "before_after",
+   "closeup",
+   "deployed_from",
+   "fisheye",
+   "flyby",
+   "hourglass",
+   "lagoon",
+   "m100_through",
+   "new_solar_arrays",
+   "zoom_out"
+  ]
+ },
+ {
+  "scene": 23,
+  "line": "The lesson. When three tests disagree, do not trust the one you like. Find out why.",
+  "intended": [
+   "three_tests"
+  ],
+  "acceptable": [
+   "corrective_optics",
+   "null_corrector",
+   "star_blur",
+   "three_tests"
+  ]
+ },
+ {
+  "scene": 24,
+  "line": "A perfect result from a broken test is just a confident mistake.",
+  "intended": [
+   "three_tests",
+   "null_corrector"
+  ],
+  "acceptable": [
+   "mirror_in_clean_room",
+   "mirror_shape_error",
+   "null_corrector",
+   "perfect_mirror",
+   "technicians_inspecting",
+   "three_tests"
+  ]
+ }
+]

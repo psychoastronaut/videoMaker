@@ -1,0 +1,2 @@
+Screen recording of pytest printing rows of green dots until the summary 299 passed
+kind: terminal

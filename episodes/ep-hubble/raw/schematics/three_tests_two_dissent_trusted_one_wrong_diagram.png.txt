@@ -1,0 +1,1 @@
+Diagram on dark blue: three rows, Null corrector says PERFECT (trusted), Test 2 says FLAW (dismissed), Test 3 says FLAW (dismissed); 'Lesson: investigate disagreement'

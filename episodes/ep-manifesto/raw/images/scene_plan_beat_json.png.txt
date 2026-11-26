@@ -1,0 +1,1 @@
+Terminal JSON excerpt of one beat from scene_plan.json: template, asset and timing fields

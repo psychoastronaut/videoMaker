@@ -1,0 +1,1 @@
+Diagram: blocks of 5 beats go to local qwen2.5 via Ollama producing scene_plan.json, with deterministic fallback on invalid output
