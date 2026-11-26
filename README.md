@@ -10,6 +10,10 @@ SigLIP2, rembg and FFmpeg. Stock media is optional and limited to CC0/public-dom
 default, with a license audit for every download.
 
 ![Terminal dashboard](docs/img/dashboard.png)
+
+A full run on the Hubble example episode (43 beats, 2m40s render on an RTX 3060, `dashboard --run`):
+
+![Hubble run, final frame](docs/img/hubble-run-final.png)
 ![Rendered frame (Stage 6 diagram)](docs/img/render-frame.jpg)
 
 ```
