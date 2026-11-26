@@ -1,1 +1,0 @@
-Terminal pip list of the local stack: faster-whisper, rembg, torch, transformers, onnxruntime, opencv, pillow

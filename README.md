@@ -9,11 +9,12 @@ Transcription, planning, matching and rendering all run on your machine: faster-
 SigLIP2, rembg and FFmpeg. Stock media is optional and limited to CC0/public-domain sources by
 default, with a license audit for every download.
 
-![Terminal dashboard](docs/img/dashboard.png)
+![Terminal dashboard running the Hubble example](docs/img/hubble-run.gif)
 
 A full run on the Hubble example episode (43 beats, 2m40s render on an RTX 3060, `dashboard --run`):
 
 ![Hubble run, final frame](docs/img/hubble-run-final.png)
+
 ![Rendered frame (Stage 6 diagram)](docs/img/render-frame.jpg)
 
 ```

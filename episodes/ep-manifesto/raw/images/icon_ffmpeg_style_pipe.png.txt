@@ -1,1 +1,0 @@
-Neon three-stage pipe icon: boxes joined by arrows like a command-line pipe, transparent background

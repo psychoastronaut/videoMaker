@@ -1,2 +1,0 @@
-Screen recording of ffmpeg encoding progress lines scrolling: frame count, fps, size, time and speed for h264_nvenc
-kind: terminal

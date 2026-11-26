@@ -1,1 +1,0 @@
-Terminal directory listing of pipeline work folder: render_cache, scene_plan.json, semantic_index.json, stabilized, upscaled, transcript.json

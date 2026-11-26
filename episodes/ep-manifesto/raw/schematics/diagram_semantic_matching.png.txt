@@ -1,1 +1,0 @@
-Diagram: sentence and asset image embeddings feed a SigLIP2 score, then Hungarian assignment and anti-repeat caps

@@ -1,1 +1,0 @@
-Diagram: voiceover goes through faster-whisper to transcript.json; raw assets go through ffprobe and sidecar text to local_assets.json

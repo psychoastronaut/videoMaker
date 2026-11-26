@@ -1,1 +1,0 @@
-Diagram on dark blue: concave mirror where edge rays (orange) cross the axis higher than centre rays (white), labels 'Edge rays focus higher', 'Centre rays focus lower', '= blurry star'; spherical aberration

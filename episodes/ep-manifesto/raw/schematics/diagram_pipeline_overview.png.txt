@@ -1,1 +1,0 @@
-Terminal-palette flow diagram: six pipeline stages transcribe, index, plan, fetch, cutouts, render in two rows with arrows

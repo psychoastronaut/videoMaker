@@ -1,1 +1,0 @@
-Terminal YAML excerpt of config: cutouts models birefnet-general-lite, isnet-general-use, u2net, thread count and font sizes

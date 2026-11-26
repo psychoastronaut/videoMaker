@@ -1,1 +1,0 @@
-Diagram on dark blue: two mirror profile curves, intended shape in green and actual too-flat shape in red, label '2.2 µm at the edge', text 'A human hair is ~50x thicker'

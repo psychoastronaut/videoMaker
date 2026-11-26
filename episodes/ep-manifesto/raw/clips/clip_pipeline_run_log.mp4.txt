@@ -1,2 +1,0 @@
-Screen recording of a terminal typing the pipeline run command, then stage 1 to 6 log lines appearing one by one
-kind: terminal

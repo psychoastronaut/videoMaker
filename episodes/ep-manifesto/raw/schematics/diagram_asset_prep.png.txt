@@ -1,1 +1,0 @@
-Diagram: CC0 stock audit, rembg birefnet cutout, quality gate with card fallback; Real-ESRGAN upscale and vidstab stabilization

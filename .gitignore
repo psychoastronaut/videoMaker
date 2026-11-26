@@ -27,19 +27,10 @@ env/
 *.bin
 models/
 
-# Episode outputs and media (keep only configs, scripts, sidecars)
-episodes/*/work/
-episodes/*/out/
-episodes/*/raw/**/*.mp4
-episodes/*/raw/**/*.mov
-episodes/*/raw/**/*.mkv
-episodes/*/raw/**/*.webm
-episodes/*/raw/**/*.avi
-episodes/*/raw/**/*.jpg
-episodes/*/raw/**/*.jpeg
-episodes/*/raw/**/*.png
-episodes/*/raw/**/*.webp
-episodes/*/raw/voiceover*
+# Episodes are local workspaces (media, plans, renders): nothing inside is tracked.
+# Create one with: python -m src.cli new <ep>
+episodes/*
+!episodes/.gitkeep
 
 # Generated media / logs anywhere
 *.mp4
@@ -52,11 +43,7 @@ episodes/*/raw/voiceover*
 *.cast
 *.log
 
-# Scratch json (plans, jit dumps) but keep test fixtures and package data
+# Scratch json at the repo root (plans, dumps)
 /*.json
 !/pyproject.toml
-
-# Keep only the showcase episodes in the repo
-episodes/*
-!episodes/ep-hubble/
-!episodes/ep-manifesto/
+/hubble_final.png

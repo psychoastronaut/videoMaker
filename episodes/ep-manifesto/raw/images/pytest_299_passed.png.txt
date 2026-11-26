@@ -1,1 +1,0 @@
-Terminal showing pytest result: 299 passed in 68.78s with one deprecation warning

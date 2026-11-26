@@ -1,1 +1,0 @@
-Terminal output listing ffmpeg h264_nvenc hevc_nvenc encoders and vidstab, loudnorm, xfade filters

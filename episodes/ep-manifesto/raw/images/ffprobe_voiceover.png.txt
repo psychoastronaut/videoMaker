@@ -1,1 +1,0 @@
-Terminal ffprobe of the placeholder voiceover wav, 1 minute 18 seconds, 22050 Hz mono

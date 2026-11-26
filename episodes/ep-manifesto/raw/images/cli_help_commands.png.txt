@@ -1,1 +1,0 @@
-Terminal screenshot of the pipeline CLI help listing commands run, transcribe, index, semantic, plan, fetch, cutouts, render

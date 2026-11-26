@@ -1,1 +1,0 @@
-Terminal table of pipeline stages 1 to 6 with DONE and PENDING status, upscaled photos and stabilized clips counters
