@@ -138,3 +138,9 @@ Model weights keep their own licenses; verify them for your use.
 See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md). Docs: [USAGE](docs/USAGE.md) |
 [ASSETS](docs/ASSETS.md) | [CONFIG](docs/CONFIG.md) | [ARCHITECTURE](docs/ARCHITECTURE.md) |
 [TROUBLESHOOTING](docs/TROUBLESHOOTING.md) | [CHANGELOG](CHANGELOG.md)
+
+## Support
+
+If the pipeline helped you, you can buy me a coffee:
+
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/rodrigomcaq)
