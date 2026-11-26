@@ -97,6 +97,29 @@ python -m src.cli --config episodes/my-ep/config.yaml dashboard my-ep --snapshot
   terminals, otherwise character blocks. Example: `--preview kitty`.
 - Ctrl-C stops the pipeline cleanly (exit 130); the pipeline's exit code is propagated.
 
+### Dashboard preview quality
+
+The preview panel adapts to the terminal (`--preview auto`, the default):
+
+| Terminal | Mode | Result |
+|---|---|---|
+| Kitty, Ghostty | `kitty` | Full-resolution image of the current beat inside the panel |
+| iTerm2, WezTerm | `iterm` | Full-resolution image (re-sent on each refresh) |
+| Any terminal with `chafa` | `sixel` | Sixel image |
+| Anything else, tmux, no tty | `quadrants` | 2x2 pixels per character cell (blocky, works everywhere) |
+
+`--record` and `--snapshot` files (`.cast`, `.png`, `.svg`, `.txt`) always use the character-cell
+renderer, because terminal graphics escapes cannot be stored in them. The live screen keeps the
+detected protocol. Force a mode with `--preview kitty` (or `quadrants`, `blocks`).
+
+Character-cell fallback (`quadrants`), 160x45 snapshot:
+
+![Dashboard preview, quadrants fallback](img/preview-quadrants.png)
+
+Inside tmux the graphics protocols are disabled by default; run the dashboard in a plain Kitty
+window for full resolution.
+
+
 ## Other commands
 
 `create-demo [ep]` builds a synthetic offline episode; `inspect`, `status` as above.

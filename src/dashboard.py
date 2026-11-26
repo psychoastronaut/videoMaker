@@ -9,6 +9,7 @@ Pure ``rich`` + PIL (no new dependencies). Three ways to use it, via ``cli dashb
 
 from __future__ import annotations
 
+import contextlib
 import io
 import json
 import math
@@ -345,6 +346,12 @@ def detect_preview_mode(pref: str = "auto", env: dict[str, str] | None = None, t
 def set_preview_mode(pref: str = "auto") -> str:
     global _preview_mode
     _preview_mode = detect_preview_mode(pref)
+    env = os.environ
+    if pref == "auto" and _preview_mode == "quadrants" and (
+            env.get("KITTY_WINDOW_ID") or env.get("TERM") == "xterm-kitty"):
+        why = "not a tty" if not sys.stdout.isatty() else "inside tmux/screen"
+        print(f"warning: kitty terminal detected but {why}; preview falls back to quadrants "
+              "(use --preview kitty to force)", file=sys.stderr)
     if _preview_mode == "kitty":
         import atexit
 
@@ -488,6 +495,19 @@ def _graphic_escape(path: Path, cu: int, ru: int, mode: str) -> str:
         head = f"a=t,i={_KITTY_ID},f=100,q=2," if i == 0 else ""
         out.append(f"\x1b_G{head}m={more};{chunk}\x1b\\")
     return "".join(out) + place
+
+
+@contextlib.contextmanager
+def cell_preview():
+    """Render with cell characters only (cast frames, snapshots): graphics escapes never go there."""
+    global _preview_mode
+    saved = _preview_mode
+    if saved in _GRAPHIC:
+        _preview_mode = "quadrants"
+    try:
+        yield
+    finally:
+        _preview_mode = saved
 
 
 def graphics_cleanup() -> str:
@@ -966,6 +986,11 @@ def build_console(width: int, height: int) -> Console:
 
 
 def export_snapshot(v: View, theme: Theme, out: Path, width: int = 120, height: int = 40) -> Path:
+    with cell_preview():
+        return _export_snapshot(v, theme, out, width, height)
+
+
+def _export_snapshot(v: View, theme: Theme, out: Path, width: int, height: int) -> Path:
     out = Path(out)
     con = build_console(width, height)
     root = render(v, theme, width, height)
@@ -1327,7 +1352,8 @@ def run_dashboard(ep: Path, ep_id: str, cfg: dict[str, Any] | None, theme: Theme
     def emit(v: View, w: int, h: int) -> None:
         nonlocal last_rec, last_ansi
         if cast and time.time() - last_rec > 1.0:
-            frame = _ansi_frame(render(v, theme, w, h), w, h)
+            with cell_preview():
+                frame = _ansi_frame(render(v, theme, w, h), w, h)
             if frame != last_ansi:
                 cast.write(json.dumps([round(time.time() - rs.t0, 3), "o", "\x1b[H" + frame.replace("\n", "\r\n")])
                            + "\n")

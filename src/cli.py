@@ -658,9 +658,8 @@ def dashboard(
     if preview not in dash.PREVIEW_MODES:
         console.print(f"[red]--preview must be one of {'|'.join(dash.PREVIEW_MODES)}[/]")
         raise typer.Exit(1)
-    # snapshots/recordings have no graphics channel: cell characters only
-    dash.set_preview_mode("quadrants" if (snapshot is not None or record is not None) and preview == "auto"
-                          else preview)
+    # live screen always uses the detected protocol; cast/snapshot frames render with cells (dash.cell_preview)
+    dash.set_preview_mode("quadrants" if snapshot is not None and preview == "auto" else preview)
     ep = get_episode_dir(episode_id)
     try:
         from src.common import load_config

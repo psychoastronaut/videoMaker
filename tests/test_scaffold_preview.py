@@ -96,3 +96,31 @@ def test_kitty_escape_in_rich_live(tmp_path: Path, monkeypatch) -> None:
     con.print(hb)
     assert "a=t" not in buf.getvalue()  # unchanged beat: nothing re-sent
     assert "a=d" in dash.graphics_cleanup() or dash._preview_mode == "kitty"
+
+
+def test_record_keeps_kitty_live_but_cast_uses_cells(tmp_path: Path, monkeypatch) -> None:
+    for k, v in (("KITTY_WINDOW_ID", "1"), ("TERM", "xterm-kitty")):
+        monkeypatch.setenv(k, v)
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True, raising=False)
+    monkeypatch.setattr(dash, "_preview_mode", "quadrants")
+    assert dash.set_preview_mode("auto") == "kitty"  # --record/--snapshot-at-end do not change this
+    p = _img(tmp_path)
+    dash._kitty_sent.clear()
+    with dash.cell_preview():
+        buf = io.StringIO()
+        Console(file=buf, force_terminal=True, width=60, height=14).print(
+            dash.HalfBlock(p, 40, 10, dash.THEMES["psycho"], big=True))
+        assert "\x1b_G" not in buf.getvalue()
+    assert dash._preview_mode == "kitty"
+    buf = io.StringIO()
+    Console(file=buf, force_terminal=True, width=60, height=14).print(
+        dash.HalfBlock(p, 40, 10, dash.THEMES["psycho"], big=True))
+    assert "\x1b_G" in buf.getvalue()
+
+
+def test_kitty_env_without_tty_warns(monkeypatch, capsys) -> None:
+    monkeypatch.setenv("KITTY_WINDOW_ID", "1")
+    monkeypatch.setattr("sys.stdout.isatty", lambda: False, raising=False)
+    assert dash.set_preview_mode("auto") == "quadrants"
+    assert "kitty terminal detected" in capsys.readouterr().err
+    assert dash.set_preview_mode("kitty") == "kitty"
