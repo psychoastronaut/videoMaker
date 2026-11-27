@@ -29,12 +29,50 @@ Put media and sidecars in `episodes/my-ep/raw/` (see [ASSETS.md](ASSETS.md)) and
 ## 3. Voice chain (Stage 0)
 
 ```bash
-python -m src.cli audio my-ep --report            # before/after LUFS, peak, noise floor
+python -m src.cli audio my-ep --report            # before/after numbers (see below)
 python -m src.cli audio my-ep --preset gentle     # podcast | gentle | aggressive
+python -m src.cli audio my-ep --ab                # work/audio_ab/: listen and compare
 ```
 
-The original is kept as `raw/voiceover.orig.*`; the result is `work/voiceover_clean.wav`.
-Timings downstream refer to the shortened audio.
+The original is kept as `raw/voiceover.orig.*`; the result is `work/voiceover_clean.wav`
+(mono, 48 kHz). Timings downstream refer to the shortened audio. All local.
+
+Chain: highpass -> automatic notches -> denoise (afftdn, then RNNoise) -> soft downward
+expander -> EQ -> de-esser -> compressor (no makeup) -> silence shortening -> limiter ->
+2-pass loudnorm. The only gain stage is the last one, so residue is never boosted by an earlier
+stage and the expander threshold is set from the measured, already denoised floor.
+
+* Noise analysis: the quietest frames (50 ms RMS) are used as pure-noise segments; their mean
+  spectrum is searched for narrow lines (hum, fan, whine at ANY frequency, harmonics included).
+  Each line gets a narrow `equalizer` notch (width ~ the measured line, up to -26 dB). Found
+  lines are listed in `work/audio_report.json` (`noise_analysis.tonal_peaks`, `notch_filters`).
+  `audio.notch: auto | off | [Hz, ...]` (a list forces those frequencies).
+* Denoise `audio.denoise: auto | rnnoise | afftdn | off`, `audio.denoise_strength` 0..1
+  (default 0.6). `auto` = (a) `afftdn` whose noise level is calibrated on the longest
+  pure-noise clip of this file, then (b) `arnndn` (RNNoise) at a conservative mix
+  (0.65 x strength). The RNNoise model (`sh.rnnn`, "somnolent-hogwash" from
+  GregorR/rnnoise-models, no copyright claimed) is downloaded once to
+  `~/.cache/videomaker/models`; offline or on failure the chain silently uses afftdn only.
+  `audio.rnnoise_model` points at another `.rnnn`. DeepFilterNet is not wired in (its pip
+  package pins old torch and a Rust build; it would risk the environment): if you want it,
+  run it yourself on `raw/voiceover.orig.*` and use the result as the source.
+* Expander: `agate` as a soft downward expander (ratio 2.5, 15 ms attack, 300 ms release,
+  knee 2.5, reduction limited to `audio.expander_db`, default 14 dB), threshold
+  `audio.expander_margin_db` (12) above the denoised floor. It lowers the residue between words,
+  it never mutes it.
+* Loudness: `audio.target_lufs` (-16) is measured on the mono file (a dual-mono stereo source
+  reads 3 LU higher than the same samples as mono; plain `-ac 1` would also add 3 dB, so the
+  downmix is a unity-gain `pan`).
+* `--report` / `work/audio_report.json` (`verification`): noise floor in absolute dBFS and
+  relative to the voice (p90 of frame levels), SNR, energy of each tonal peak before/after
+  (absolute and relative to the voice), and the 300-4000 Hz speech energy change in voiced
+  frames after notches + denoise + expander (should stay within about 1 dB).
+* `--ab` writes `work/audio_ab/original.wav`, `atual.wav` (previous chain) and `novo.wav`: three
+  10 s excerpts with voice and a pause each (same timeline, 1 s apart, level matched, silence
+  shortening off so they line up), `spectrogram_{original,atual,novo}.png` and `ab.json`
+  with the excerpt start times.
+* Tuning: if the voice sounds watery or "chirpy", lower `denoise_strength` (try 0.4); if noise
+  is still audible, raise it (0.8) or use `--preset aggressive`.
 
 ## 4. Run the pipeline
 

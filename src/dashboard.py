@@ -90,10 +90,11 @@ STAGE_DEFS: list[dict[str, str]] = [
     {"name": "Planner", "model": "qwen2.5:14b", "desc": "Ollama, blocks of 5, JSON"},
     {"name": "Stock + audit", "model": "CC0 / PD", "desc": "free stock, license audit"},
     {"name": "Cutouts", "model": "rembg birefnet", "desc": "alpha + quality gate"},
+    {"name": "Music", "model": "CC0 / synth", "desc": "track, mood, sidechain duck"},
     {"name": "Render", "model": "FFmpeg NVENC", "desc": "templates, xfade, loudnorm"},
 ]
 LOG_STAGE = {"audio": 0, "transcribe": 1, "index": 2, "semantic": 2, "prefetch": 4, "plan": 3,
-             "fetch": 4, "cutouts": 5, "render": 6}
+             "fetch": 4, "cutouts": 5, "music": 6, "render": 7}
 NB = 5  # planner block size
 
 
@@ -114,6 +115,7 @@ class Data:
     cutouts: dict[str, Any] = field(default_factory=dict)
     qa: dict[str, Any] = field(default_factory=dict)
     audio: dict[str, Any] = field(default_factory=dict)
+    music: dict[str, Any] = field(default_factory=dict)
     audit: Any = None
     transcript: dict[str, Any] = field(default_factory=dict)
     sem: dict[str, Any] = field(default_factory=dict)
@@ -141,6 +143,7 @@ def load_data(ep: Path, ep_id: str, cfg: dict[str, Any] | None = None) -> Data:
     d.cutouts = _rj(w / "cutouts_manifest.json") or {}
     d.qa = _rj(ep / "out" / "qa_report.json") or _rj(w / "qa_report.json") or {}
     d.audio = _rj(w / "audio_report.json") or {}
+    d.music = _rj(w / "music.json") or {}
     d.audit = _rj(w / "licenses_audit.json")
     if d.audit is None:
         d.audit = _rj(ep / "out" / "licenses_audit.json")
@@ -254,19 +257,30 @@ def stage_views(d: Data) -> list[StageView]:
         warn = len(d.cutouts.get("warnings") or [])
         v5.extra = f"{warn} warnings" if warn else ""
     v6 = views[6]
-    if d.video.exists():
+    if d.music:
         v6.status = "done"
+        v6.model = str(d.music.get("source") or "-")[:12]
+        lu = d.music.get("level_lufs")
+        v6.counters = [("mood", d.music.get("mood") or "-")]
+        if isinstance(lu, (int, float)):
+            v6.counters.append(("lufs", f"{lu:.1f}"))
+        v6.extra = str(d.music.get("license") or "")[:40]
+    elif (d.ep / "work" / "music_audit.json").exists():
+        v6.status = "done"
+    v7 = views[7]
+    if d.video.exists():
+        v7.status = "done"
         dur = d.qa.get("duration")
         lu = (d.qa.get("loudness") or {}).get("integrated_lufs")
         dur = dur or d.plan.get("total_duration")
-        v6.counters = [("dur", f"{dur:.0f}s" if dur else "-"), ("lufs", f"{lu:.1f}" if lu else "-")]
+        v7.counters = [("dur", f"{dur:.0f}s" if dur else "-"), ("lufs", f"{lu:.1f}" if lu else "-")]
         if lu is None:
-            v6.counters.pop()
+            v7.counters.pop()
         if d.qa:
-            v6.extra = "QA pass" if d.qa.get("passed") else f"QA {len(d.qa.get('issues') or [])} issues"
+            v7.extra = "QA pass" if d.qa.get("passed") else f"QA {len(d.qa.get('issues') or [])} issues"
         cache = d.ep / "work" / "render_cache"
         if cache.is_dir():
-            v6.counters.append(("cache", sum(1 for _ in cache.iterdir())))
+            v7.counters.append(("cache", sum(1 for _ in cache.iterdir())))
     for i, v in enumerate(views):
         if i in secs:
             v.seconds = secs[i]
@@ -869,9 +883,9 @@ def render(v: View, theme: Theme, width: int, height: int) -> Styled:
     main_h = height - 2 - log_h
     left_w = width // 2
     right_w = width - left_w
-    hs = [main_h // 7 + (1 if k < main_h % 7 else 0) for k in range(7)]
+    hs = [main_h // 8 + (1 if k < main_h % 8 else 0) for k in range(8)]
     left = Layout()
-    left.split_column(*[Layout(stage_box(i, v.stages[i], hs[i], theme, left_w), size=hs[i]) for i in range(7)])
+    left.split_column(*[Layout(stage_box(i, v.stages[i], hs[i], theme, left_w), size=hs[i]) for i in range(8)])
     mix_h = 6 if main_h <= 30 else 8
     beats_h = 8 if main_h <= 40 else 10
     prev_h = max(main_h - mix_h - beats_h, 16)
@@ -889,7 +903,7 @@ def render(v: View, theme: Theme, width: int, height: int) -> Styled:
     head = Text(no_wrap=True, overflow="ellipsis")
     head.append(" AGENT PIPELINE ", style=f"bold {theme.c(theme.bg)} on {theme.c(theme.accents[0])}")
     head.append(f"  {v.ep_id}", style=f"bold {theme.c(theme.accents[1])}")
-    head.append(f"   {sum(s.status == 'done' for s in v.stages)}/7 stages done", style=theme.c(theme.dim))
+    head.append(f"   {sum(s.status == 'done' for s in v.stages)}/{len(v.stages)} stages done", style=theme.c(theme.dim))
     status = Text(no_wrap=True, overflow="ellipsis")
     run = next((s for s in v.stages if s.status == "running"), None)
     status.append(f" {v.mode.upper()} ", style=f"bold {theme.c(theme.bg)} on {theme.c(theme.accents[1])}")
@@ -952,7 +966,7 @@ def replay_view(d: Data, frames: dict[str, Any], t: float, speed: float, use_seq
         log.append(f"{clock(starts[i])} {f.name.lower():<10} start  {f.model}")
         if p >= 1:
             log.append(f"{clock(starts[i] + durs[i])} {f.name.lower():<10} {(f.seconds or 0):6.1f}s  ok")
-    rp = 0.0 if durs[6] == 0 else min(max((t - starts[6]) / durs[6], 0.0), 1.0)
+    rp = 0.0 if durs[7] == 0 else min(max((t - starts[7]) / durs[7], 0.0), 1.0)
     pp3 = 0.0 if durs[3] == 0 else min(max((t - starts[3]) / durs[3], 0.0), 1.0)
     shown = n if rp > 0 or pp3 >= 1 else round(n * pp3)
     total_dur = float(d.plan.get("total_duration") or (d.beats[-1].get("end_time", 0) if n else 0))
@@ -1081,7 +1095,7 @@ def run_live(ep: Path, ep_id: str, cfg: dict[str, Any] | None, theme: Theme, *, 
 
 # --------------------------------------------------------------------------- live run (--run)
 
-TITLE_STAGE = {"0": 0, "1": 1, "2": 2, "2a": 2, "2b": -1, "3": 3, "4": 4, "5": 5, "6": 6}
+TITLE_STAGE = {"0": 0, "1": 1, "2": 2, "2a": 2, "2b": -1, "3": 3, "4": 4, "5": 5, "5b": 6, "6": 7}
 _ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 _BOX = " │┃╭╮╰╯─┏┓┗┛━"
 _RE_SKIP = re.compile(r"Skipping: Stage (\w+):")
@@ -1171,8 +1185,8 @@ class RunState:
 
     def eta(self) -> float | None:
         done, total = self.beats_done()
-        if self.status.get(6) == "running" and done > 0 and 6 in self.started:
-            return (time.time() - self.started[6]) / done * (total - done)
+        if self.status.get(7) == "running" and done > 0 and 7 in self.started:
+            return (time.time() - self.started[7]) / done * (total - done)
         done, total = self.chunk
         if self.status.get(3) == "running" and done > 0 and 3 in self.started:
             return (time.time() - self.started[3]) / done * (total - done)
@@ -1206,12 +1220,12 @@ def live_stage_views(rs: RunState, d: Data) -> list[StageView]:
                     sv.loop = rs.chunk
                 elif i == 5:
                     c = [("cutouts", rs.counts.get("cutouts", 0))]
-                elif i == 6 and rs.beats_done()[1]:
+                elif i == 7 and rs.beats_done()[1]:
                     bd = rs.beats_done()
                     c = [("beat", f"{bd[0]}/{bd[1]}")]
                     sv.loop = bd
                 eta = rs.eta()
-                if eta is not None and i in (3, 6):
+                if eta is not None and i in (3, 7):
                     c.append(("eta", _fmt_s(eta)))
                 sv.counters = c
             out.append(sv)
@@ -1235,7 +1249,7 @@ def live_preview(d: Data, rs: RunState, cur: int) -> Path | None:
     """Frame of the beat being planned/rendered: newest render_cache segment, else the beat's asset."""
     out = d.ep / "work" / "dashboard_frames"
     out.mkdir(parents=True, exist_ok=True)
-    if rs.status.get(6) == "running":
+    if rs.status.get(7) == "running":
         cache = d.ep / "work" / "render_cache"
         try:
             segs = [p for p in cache.glob("beat_*.mp4") if p.stat().st_mtime >= rs.t0 - 1]
@@ -1321,7 +1335,7 @@ def run_dashboard(ep: Path, ep_id: str, cfg: dict[str, Any] | None, theme: Theme
             d = load_data(ep, ep_id, cfg)
             last_load = now
         n = len(d.beats)
-        if rs.status.get(6) == "running":
+        if rs.status.get(7) == "running":
             try:
                 rs.polled = sum(1 for p in (d.ep / "work" / "render_cache").glob("beat_*.mp4")
                                 if p.stat().st_mtime >= rs.t0 - 1)
@@ -1330,7 +1344,7 @@ def run_dashboard(ep: Path, ep_id: str, cfg: dict[str, Any] | None, theme: Theme
             if not rs.beat[1]:
                 rs.beat = (0, n)
         stages = live_stage_views(rs, d)
-        plan_ready = rs.status.get(3) == "done" or rs.status.get(6) in ("running", "done")
+        plan_ready = rs.status.get(3) == "done" or rs.status.get(7) in ("running", "done")
         shown = n if plan_ready else 0
         if final_frames is not None:
             bf = final_frames.get("beat", {})
@@ -1338,11 +1352,11 @@ def run_dashboard(ep: Path, ep_id: str, cfg: dict[str, Any] | None, theme: Theme
             preview = bf.get(cur)
             thumbs = [bf.get(i) for i in range(n)]
         else:
-            cur = max(rs.cur_beat, rs.beats_done()[0] - 1) if rs.status.get(6) == "running" else int((now - rs.t0) / 2) % max(n, 1)
+            cur = max(rs.cur_beat, rs.beats_done()[0] - 1) if rs.status.get(7) == "running" else int((now - rs.t0) / 2) % max(n, 1)
             cur = min(max(cur, 0), max(n - 1, 0))
             preview = live_preview(d, rs, cur)
             thumbs = [None] * n
-            if rs.status.get(6) == "running":
+            if rs.status.get(7) == "running":
                 shown = min(rs.beats_done()[0], n)
         with rs.lock:
             log = rs.log[-10:]
@@ -1382,7 +1396,7 @@ def run_dashboard(ep: Path, ep_id: str, cfg: dict[str, Any] | None, theme: Theme
     code = proc.wait() if not interrupted else 130
     time.sleep(0.2)
     if code == 0:
-        for i in range(7):
+        for i in range(8):
             if rs.status.get(i) == "running":
                 rs.status[i] = "done"
     w, h = console.size

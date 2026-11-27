@@ -28,7 +28,7 @@ from typing import Any
 from PIL import Image
 from rich.console import Console
 
-from src import branding_sound, graphics, overlays, theme
+from src import branding_sound, graphics, music, overlays, theme
 from src.common import (
     episode_dir,
     load_config,
@@ -1108,8 +1108,17 @@ def run(episode_id: str, work_dir: Path, draft: bool = False) -> dict[str, Any]:
         if branded and s.branding_sound and s.branding_sound_gain > 0:
             sfx = branding_sound.write_wav(tmp_dir / "branding_sfx.wav", intro_dur, video_dur,
                                            outro_dur, s.audio_rate)
+        music_mix = _music_input(config, work_dir, ep_dir, video_dur + intro_dur + outro_dur,
+                                 draft, warnings)
+        stems = (tmp_dir / "stem_voice.wav", tmp_dir / "stem_music.wav") if music_mix else None
         _mux(concat_file, audio_path, output_path, video_dur, s, events, warnings,
-             lead=intro_dur, tail_extra=outro_dur, sfx=sfx)
+             lead=intro_dur, tail_extra=outro_dur, sfx=sfx, music_mix=music_mix, stems=stems)
+        music_qa = None
+        if stems and all(p.is_file() for p in stems):
+            try:
+                music_qa = music.qa_music(stems[0], stems[1])
+            except (OSError, ValueError, EOFError) as e:
+                warnings.append(f"music QA failed: {e}")
 
     if draft:
         duration = probe_duration(output_path) or 0.0
@@ -1135,6 +1144,8 @@ def run(episode_id: str, work_dir: Path, draft: bool = False) -> dict[str, Any]:
             if qa["passed"] else "\n".join(f"- {i}" for i in qa["issues"]) + "\n"))
         fh.write(f"\n- loudness: {qa['loudness']}\n- callout overlap warnings: "
                  f"{qa['callout_overlap_warnings']}\n- segments: {ctx.render_stats}\n")
+    if music_qa is not None:
+        _finish_music_qa(music_qa, qa, out_dir, music_mix[1])
     for i in qa["issues"]:
         warnings.append(f"QA: {i}")
 
@@ -1294,6 +1305,25 @@ def qa_gate(video: Path, out_dir: Path, warnings: list[str], expected: float,
     return report
 
 
+def _finish_music_qa(mqa: dict[str, Any], qa: dict[str, Any], out_dir: Path,
+                     cfg: music.MusicCfg) -> None:
+    """Fold the music/voice check into qa_report.json (voice must stay intelligible)."""
+    mqa["final_lufs"] = qa["loudness"].get("integrated_lufs")
+    try:
+        meta = read_json(out_dir.parent / "work" / "music.json")
+        mqa.update({"source": meta.get("source"), "mood": meta.get("mood"),
+                    "license": meta.get("license"), "level_lufs": cfg.level_lufs})
+    except (OSError, ValueError):
+        pass
+    qa["music"] = mqa
+    if not mqa["passed"]:
+        qa["issues"].append(
+            f"music too loud under speech: p95 {mqa['music_vs_voice_db_p95']} dB vs voice "
+            f"(limit {mqa['max_allowed_db']} dB)")
+        qa["passed"] = False
+    write_json(out_dir / "qa_report.json", qa)
+
+
 def _write_output_audit(work_dir: Path, out_dir: Path, beats: list[dict[str, Any]],
                         resolver: AssetResolver, beat_notes: dict[int, str]) -> None:
     """out/licenses_audit.json: only assets actually used in the cut. Policy-refused assets
@@ -1317,7 +1347,14 @@ def _write_output_audit(work_dir: Path, out_dir: Path, beats: list[dict[str, Any
             excluded.append({**a, "excluded_reason": "beat rendered as fallback card"})
         else:
             used.append(a)
-    write_json(out_dir / "licenses_audit.json", {**raw, "assets": used, "excluded": excluded})
+    extra: dict[str, Any] = {}
+    if (work_dir / "music.wav").is_file() and (work_dir / "music_audit.json").is_file():
+        try:
+            extra["music"] = read_json(work_dir / "music_audit.json")
+        except (OSError, ValueError):
+            pass
+    write_json(out_dir / "licenses_audit.json",
+               {**raw, "assets": used, "excluded": excluded, **extra})
 
 
 def _merge_stage5_warnings(render_warnings: list[str], work_dir: Path) -> list[str]:
@@ -1630,10 +1667,33 @@ def _mix_clip_audio(audio: Path, events: list[ClipAudio], out: Path, video_dur: 
     return out
 
 
+def _music_input(config: dict[str, Any], work_dir: Path, ep_dir: Path, total: float,
+                 draft: bool, warnings: list[str]) -> tuple[Path, music.MusicCfg] | None:
+    """``work/music.wav`` when the music stage is enabled and has produced a track."""
+    cfg = music.MusicCfg.from_config(config)
+    if draft or cfg.off:
+        return None
+    track = work_dir / "music.wav"
+    if not track.is_file() and cfg.enabled == "true":  # explicitly on: make it now
+        try:
+            music.build(ep_dir, cfg)
+        except (OSError, ValueError, RuntimeError) as e:
+            warnings.append(f"music: could not build a track ({e}); rendered without music")
+    if not track.is_file():
+        return None
+    dur = probe_duration(track) or 0.0
+    if abs(dur - total) > 1.0:
+        warnings.append(f"music.wav is {dur:.1f}s but the cut is {total:.1f}s (stale?); "
+                        "run `music <ep>` - it is looped/trimmed meanwhile")
+    return track, cfg
+
+
 def _mux(concat_file: Path, audio: Path, output: Path, video_dur: float,
          s: RenderSettings, events: list[ClipAudio] | None = None,
          warnings: list[str] | None = None, lead: float = 0.0,
-         tail_extra: float = 0.0, sfx: Path | None = None) -> None:
+         tail_extra: float = 0.0, sfx: Path | None = None,
+         music_mix: tuple[Path, music.MusicCfg] | None = None,
+         stems: tuple[Path, Path] | None = None) -> None:
     """Concat the beat videos (stream copy) and mux the normalised voiceover (+ clip audio,
     mixed first so loudnorm measures the final mix)."""
     if events:
@@ -1664,17 +1724,38 @@ def _mux(concat_file: Path, audio: Path, output: Path, video_dur: float,
         af += f",afade=t=out:st={video_dur - d:.3f}:d={d:.3f}"
     sfx_in: list[str] = []
     audio_args = ["-map", "1:a:0", "-af", af]
-    if sfx is not None:  # voice (loudness-normalised) + boot sound around it
-        sfx_in = ["-i", str(sfx)]
-        audio_args = ["-filter_complex",
-                      (f"[1:a]{af}[vo];[2:a]volume={s.branding_sound_gain:.3f}[sfx];"
-                      "[vo][sfx]amix=inputs=2:normalize=0:duration=first,"
-                      "alimiter=limit=0.95:level=disabled[aout]"), "-map", "[aout]"]
+    extra_out: list[str] = []
+    if sfx is not None or music_mix is not None:
+        # voice (loudness-normalised) + boot sound + ducked music around it
+        idx = 2
+        parts = [f"[1:a]{af}[vo0]"]
+        labels = ["vo"]
+        if music_mix is not None:
+            parts.append("[vo0]" + ("asplit=3[vo][vk][vst]" if stems else "asplit=2[vo][vk]"))
+            parts.append(music.mix_filter(music_mix[1], f"{idx}:a", "vk", "md", lead, video_dur,
+                                          "mst" if stems else None))
+            sfx_in += ["-i", str(music_mix[0])]
+            labels.append("md")
+            idx += 1
+            if stems:
+                extra_out = ["-map", "[mst]", "-c:a", "pcm_s16le", "-ar", str(s.audio_rate),
+                             str(stems[1]), "-map", "[vst]", "-c:a", "pcm_s16le", "-ar",
+                             str(s.audio_rate), str(stems[0])]
+        else:
+            parts.append("[vo0]anull[vo]")
+        if sfx is not None:
+            sfx_in += ["-i", str(sfx)]
+            parts.append(f"[{idx}:a]volume={s.branding_sound_gain:.3f}[sfx]")
+            labels.append("sfx")
+        parts.append("".join(f"[{x}]" for x in labels)
+                     + f"amix=inputs={len(labels)}:normalize=0:duration=first,"
+                     "alimiter=limit=0.95:level=disabled[aout]")
+        audio_args = ["-filter_complex", ";".join(parts), "-map", "[aout]"]
     cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
            "-f", "concat", "-safe", "0", "-i", str(concat_file), "-i", str(audio), *sfx_in,
            "-map", "0:v:0", *audio_args, "-c:v", "copy",
            "-c:a", "aac", "-b:a", s.audio_bitrate, "-ar", str(s.audio_rate), "-ac", "2",
-           "-t", f"{video_dur:.4f}", "-movflags", "+faststart", str(output)]
+           "-t", f"{video_dur:.4f}", "-movflags", "+faststart", str(output), *extra_out]
     result = _run(cmd, timeout=1800)
     if result.returncode != 0:
         _log_failure("final mux", cmd, result)

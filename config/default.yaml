@@ -339,6 +339,18 @@ audio:                            # voice chain (ffmpeg only), runs before Stage
   hum_hz: 60                      # mains hum notch (podcast/aggressive); null = off
   rnnoise_model: null             # optional path to an arnndn .rnnn model (extra denoise)
 
+music:                            # Stage 5b background track, ducked under the voice at render: `music <ep> [--source --mood --preview]`
+  enabled: auto                   # auto = on once work/music.wav exists (`run` makes it) | true = also build it at render | false
+  source: auto                    # auto (episode > library > openverse > synth) | episode (raw/music/*) | library (assets/music/*) | openverse (CC0/PD only) | synth (original) | off
+  mood: auto                      # auto (from the plan's beat_style mix) | tense | calm | upbeat (synth + search terms)
+  level_lufs: -22.0               # integrated loudness of the track before ducking (stem ends up ~ -30..-26 after ducking)
+  duck_db: 10.0                   # how much speech lowers the music (sidechain, release 400 ms)
+  intro_gain: 0.35                # linear music level over the boot intro, ramping to 1.0 with the boot
+  volume_in_pauses: 2.0           # dB the music rises over pauses (before ducking)
+  seed: null                      # synth/choice seed; null = derived from the episode id
+  openverse: true                 # allow the online CC0/PD search in source: auto (offline mode skips it)
+  # strict_cc0_only: true         # inherits stock_media.strict_cc0_only; true = CC0 only (PD-mark and undeclared licences refused)
+
 stabilize:                        # shake smoothing of source clips (ffmpeg vidstab; OpenCV fallback)
   enabled: auto                   # auto = only clips whose shake score > threshold | true = all | false
   threshold: 1.25                 # score = px @1920 of high-frequency camera jitter (steady <0.7, shaky >1.3)

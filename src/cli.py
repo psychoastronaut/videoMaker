@@ -82,6 +82,7 @@ STAGES = [
     Stage("plan", "Stage 3: Plan Scenes", "src.stage3_plan_scenes"),
     Stage("fetch", "Stage 4: Fetch Stock Media", "src.stage4_fetch_stock"),
     Stage("cutouts", "Stage 5: Cutouts & Overlays", "src.stage5_cutouts"),
+    Stage("music", "Stage 5b: Music", "src.music"),
     Stage("render", "Stage 6: Render Final Cut", "src.stage6_render"),
 ]
 STAGE_BY_KEY = {s.key: s for s in STAGES}
@@ -208,11 +209,15 @@ def stale_reason(key: str, ep: Path, work: Path) -> str | None:
         if not (work / "cutouts" / ".ready").exists():
             return "no overlays generated"
         return "plan changed since overlays" if state.get("cutouts") != resolved else None
+    if key == "music":
+        from src import music
+
+        return music.stale_reason(ep, work)
     if key == "render":
         art = ep / "out" / "final_cut.mp4"
         if not art.exists():
             return "no final cut"
-        newest_in = max(_mtime(work / "scene_plan.json"), _mtime(voice),
+        newest_in = max(_mtime(work / "scene_plan.json"), _mtime(voice), _mtime(work / "music.wav"),
                         _newest(list((work / "cutouts").glob("*.png"))))
         return "plan/overlays newer than render" if newest_in > _mtime(art) else None
     return None
@@ -348,7 +353,7 @@ def run(
     force: bool = typer.Option(False, "--force", "-f", help="Re-run every stage"),
     from_stage: str | None = typer.Option(
         None, "--from-stage", help="Skip every stage before this one (audio|transcribe|index|semantic|"
-        "prefetch|plan|fetch|cutouts|render)"),
+        "prefetch|plan|fetch|cutouts|music|render)"),
 ) -> None:
     """Run the full pipeline; stages whose inputs did not change are skipped."""
     if from_stage is not None and from_stage not in STAGE_BY_KEY:
@@ -375,9 +380,10 @@ def audio(
     episode_id: str = typer.Argument(..., help="Episode ID"),
     report: bool = typer.Option(False, "--report", help="Print before/after metrics"),
     preset: str = typer.Option(None, "--preset", help="podcast | gentle | aggressive"),
+    ab: bool = typer.Option(False, "--ab", help="Write original/atual/novo excerpts + spectrograms to work/audio_ab"),
 ) -> None:
-    """Stage 0: clean the voice-over (denoise, EQ, compress, trim silences, -16 LUFS)."""
-    _single("audio", episode_id, report=report, preset=preset)
+    """Stage 0: clean the voice-over (notches, denoise, expander, EQ, compress, trim silences, -16 LUFS)."""
+    _single("audio", episode_id, report=report, preset=preset, ab=ab)
 
 
 @app.command()
@@ -501,6 +507,27 @@ def cutouts(episode_id: str = typer.Argument(..., help="Episode ID")) -> None:
 
 
 @app.command()
+def music(
+    episode_id: str = typer.Argument(..., help="Episode ID"),
+    source: str | None = typer.Option(
+        None, "--source", help="auto|episode|library|openverse|synth|off"),
+    mood: str | None = typer.Option(None, "--mood", help="auto|tense|calm|upbeat"),
+    preview: bool = typer.Option(
+        False, "--preview", help="also write work/music_preview.wav (20 s of voice + music)"),
+) -> None:
+    """Stage 5b: build work/music.wav (CC0 / original) for the render to mix under the voice."""
+    from src import music as music_mod
+
+    if source is not None and source not in music_mod.SOURCES:
+        console.print(f"[red]Unknown source {source!r}; use {', '.join(music_mod.SOURCES)}[/]")
+        raise typer.Exit(1)
+    if mood is not None and mood not in music_mod.MOODS:
+        console.print(f"[red]Unknown mood {mood!r}; use {', '.join(music_mod.MOODS)}[/]")
+        raise typer.Exit(1)
+    _single("music", episode_id, source=source, mood=mood, preview=preview)
+
+
+@app.command()
 def render(episode_id: str = typer.Argument(..., help="Episode ID"),
            draft: bool = typer.Option(False, "--draft", help="Fast low-res preview -> "
                                       "out/draft.mp4 (640x360, x264 ultrafast, no transitions)")
@@ -610,6 +637,7 @@ def status(episode_id: str = typer.Argument(..., help="Episode ID")) -> None:
         "plan": work / "scene_plan.json",
         "fetch": work / "licenses_audit.json",
         "cutouts": work / "cutouts" / ".ready",
+        "music": work / "music.wav",
         "render": ep / "out" / "final_cut.mp4",
     }
     table = Table(title=f"Pipeline Status — {episode_id}")

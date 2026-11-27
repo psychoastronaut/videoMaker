@@ -12,6 +12,7 @@
 | `plan` | 3 Planner | `stage3_plan_scenes.py`, `semantic_planner.py`, `assignment.py`, `variety.py`, `callouts.py`, `transitions.py` | `work/scene_plan.json` |
 | `fetch` | 4 Stock + audit | `stage4_fetch_stock.py`, `stock_video.py` | `out/licenses_audit.json` |
 | `cutouts` | 5 Cutouts | `stage5_cutouts.py`, `overlays.py`, `graphics.py` | `work/cutouts/`, `cutouts_manifest.json` |
+| `music` | 5b Music | `music.py`, `music_synth.py` | `work/music.wav`, `music.json`, `music_audit.json` |
 | `render` | 6 Render | `stage6_render.py` | `out/final_cut.mp4`, `timeline_summary.md`, `qa_report.json`, `work/render_cache/` |
 
 Other files in `work/`: `semantic_cache/` (LLM query rewrites), `semantic_debug.json`,
