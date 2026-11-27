@@ -472,6 +472,23 @@ def _fit_rect(size: tuple[int, int] | None, box: tuple[int, int, int, int]
     return x + (w - fw) // 2, y + (h - fh) // 2, fw, fh
 
 
+def highlight_trusted(h: dict[str, Any]) -> tuple[bool, str]:
+    """A highlight is drawn only when its position is explicit (sidecar / hand-written numeric
+    box) or located by OCR/VLM. A bare named region ('top', 'bottom'...) with no provenance is
+    an old guess that lands on titles and unrelated text: skipped."""
+    if h.get("source") in ("sidecar", "ocr", "vlm", "manual"):
+        return True, ""
+    if h.get("region") and not any(k in h for k in "xywh"):
+        return False, f"unlocated region '{h['region']}' (no OCR/VLM/sidecar position)"
+    try:
+        _x, _y, w, hh = (float(h.get(k, 0)) for k in "xywh")
+    except (TypeError, ValueError):
+        return False, "invalid box"
+    if 0 < max(w, hh) <= 1.0 and (w < 0.01 or hh < 0.008):
+        return False, "empty box"
+    return True, ""
+
+
 def _add_highlights(job: FilterJob, beat: dict[str, Any], ctx: CompileContext, last: str,
                     frames: int) -> str:
     """Pulsing boxes/arrows with a label over the picture (Pillow plates, ffmpeg alpha pulse)."""
@@ -490,6 +507,10 @@ def _add_highlights(job: FilterJob, beat: dict[str, Any], ctx: CompileContext, l
     accent = graphics.accent_for(beat.get("beat_style", "normal"))
     dur = frames / s.fps
     for n, h in enumerate((beat.get("highlights") or [])[:4]):
+        ok, why = highlight_trusted(h)
+        if not ok:
+            ctx.warnings.append(f"beat {beat.get('id')}: highlight skipped ({why})")
+            continue
         x, y, w, hh = overlays.resolve_box(h, ref, s.width)
         png, dx, dy = overlays.make_highlight(
             ctx.tmp_dir / f"hl_{beat.get('id')}_{n}.png", w, hh, str(h.get("label") or ""),
@@ -631,7 +652,7 @@ def _compile_fullscreen(beat: dict[str, Any], frames: int, ctx: CompileContext,
     else:
         src: int | str = i
         cr = beat.get("crop_region")  # reuse view: detail crop of a still (plan field)
-        if cr and not main.is_video and len(cr) == 4:
+        if cr and len(cr) == 4:  # stills and clips (fix mode can crop a clip)
             job.add_chain(f"[{i}:v]crop=w=trunc(iw*{cr[2]:.4f}/2)*2:h=trunc(ih*{cr[3]:.4f}/2)*2:"
                           f"x=trunc(iw*{cr[0]:.4f}/2)*2:y=trunc(ih*{cr[1]:.4f}/2)*2[crsrc]")
             src = "crsrc"

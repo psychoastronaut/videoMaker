@@ -71,7 +71,10 @@ def run(episode_id: str, work_dir: Path) -> dict[str, Any]:
     pool = load_pool(work_dir, _stock_policy(work_dir))
     if pool:
         console.print(f"  Stock pool: {len(pool)} pre-fetched free media item(s)")
-    ctx = PlanContext(config, assets_data.get("assets", []), words, duration, pool)
+    from src.common import drop_burned, drop_excluded
+
+    assets = drop_burned(drop_excluded(assets_data.get("assets", []), work_dir), work_dir)
+    ctx = PlanContext(config, assets, words, duration, pool)
 
     plan = _try_llm_plan(transcript, ctx, episode_id)
     if plan is None:

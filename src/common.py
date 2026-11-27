@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -105,6 +106,70 @@ def write_json(path: Path, data: Any) -> None:
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False, default=str)
     os.replace(tmp, path)
+
+
+# --------------------------------------------------------------------------- excluded assets
+
+EXCLUDED_FILE = "excluded_assets.json"   # work/: [{"id", "file", "reason", "ts"}] (fix mode)
+BURNED_FILE = "burned_text.json"         # work/: {asset id: {"text", "kind", "region", ...}}
+
+
+def sidecar_excluded(filepath: str | Path | None) -> bool:
+    """True when the asset's sidecar (``<file>.txt``) has a line ``exclude: true``."""
+    if not filepath:
+        return False
+    try:
+        text = Path(str(filepath) + ".txt").read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    m = re.search(r"^\s*exclude\s*[:=]\s*(\S+)", text, re.IGNORECASE | re.MULTILINE)
+    return bool(m and m.group(1).strip().lower() in ("true", "yes", "1", "on"))
+
+
+def excluded_ids(work: Path, assets: list[dict[str, Any]] | None = None) -> set[str]:
+    """Asset ids that must never be used: listed in work/excluded_assets.json (by id or file
+    name) or flagged ``exclude: true`` in the sidecar. Respected by stages 2/2a/3 and fix mode."""
+    ids: set[str] = set()
+    names: set[str] = set()
+    p = work / EXCLUDED_FILE
+    if p.is_file():
+        try:
+            for e in read_json(p):
+                if e.get("id"):
+                    ids.add(str(e["id"]))
+                if e.get("file"):
+                    names.add(str(e["file"]))
+        except (json.JSONDecodeError, OSError, AttributeError, TypeError):
+            pass
+    if assets is None:
+        ap = work / "local_assets.json"
+        assets = read_json(ap).get("assets", []) if ap.is_file() else []
+    for a in assets:
+        if a.get("filename") in names or sidecar_excluded(a.get("filepath")):
+            ids.add(a["id"])
+    return ids
+
+
+def drop_excluded(assets: list[dict[str, Any]], work: Path) -> list[dict[str, Any]]:
+    bad = excluded_ids(work, assets)
+    return [a for a in assets if a["id"] not in bad] if bad else assets
+
+
+def load_burned(work: Path) -> dict[str, Any]:
+    p = work / BURNED_FILE
+    try:
+        return read_json(p) if p.is_file() else {}
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def drop_burned(assets: list[dict[str, Any]], work: Path) -> list[dict[str, Any]]:
+    """Planner candidates: assets with burned-in text/captions/watermarks are avoided unless a
+    crop (``crop_box``) already cuts the text band away."""
+    flagged = {k for k, v in load_burned(work).items() if v.get("text")}
+    return [a for a in assets if not ((a["id"] in flagged or a.get("burned_text"))
+                                      and not a.get("crop_box"))] if flagged or any(
+        a.get("burned_text") for a in assets) else assets
 
 
 # --------------------------------------------------------------------------- ffprobe

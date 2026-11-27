@@ -177,7 +177,9 @@ def run(episode_id: str, work_dir: Path) -> dict[str, Any]:
     if backend is None:
         console.print("  [yellow]Semantic index skipped: planner will use keyword matching[/]")
         return {}
-    assets = read_json(work_dir / "local_assets.json").get("assets", [])
+    from src.common import drop_excluded
+
+    assets = drop_excluded(read_json(work_dir / "local_assets.json").get("assets", []), work_dir)
     try:
         return build_index(work_dir, backend, assets, semantic_config(config))
     finally:
@@ -217,8 +219,16 @@ class SemanticIndex:
         if not (jp.is_file() and npy.is_file()):
             return None
         try:
-            return cls(read_json(jp), np.load(npy), merge_margin)
+            data = read_json(jp)
         except (json.JSONDecodeError, OSError, ValueError):
+            return None
+        try:
+            from src.common import excluded_ids
+
+            for aid in excluded_ids(work):  # fix mode: never retrieve an excluded asset
+                data.get("assets", {}).pop(aid, None)
+            return cls(data, np.load(npy), merge_margin)
+        except (OSError, ValueError):
             return None
 
     @property

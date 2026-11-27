@@ -4,7 +4,8 @@
   a few candidate regions by SigLIP score of the region embedding against the beat's query;
 * clip           -> a different, non-overlapping ``media_start/media_end`` segment (shot
   boundaries from the semantic index, best shot for the beat first);
-* diagram        -> its next sidecar ``highlights`` region (never invented).
+* diagram        -> its sidecar ``highlights`` region, or a box located by OCR/VLM on the
+                    narrated text (src/locate.py); never invented.
 The first use keeps the plain asset; ``diversify_views`` only touches the 2nd, 3rd... use.
 """
 
@@ -153,14 +154,18 @@ def diversify_views(beats: list[Any], ctx: Any, index: Any, by_beat: dict[int, l
                     stats["crop"] += 1
         elif kind == "schematic" and div.get("diagram_highlights", True):
             hl = sidecar_highlights(a) or []
-            order = _ink_regions(a)  # busiest areas first: where the diagram has content
             for k, b in enumerate(bs):
                 if b.highlights is not None:
                     continue
                 if hl:
                     b.highlights = [hl[k % len(hl)]]
-                elif k and order:
-                    b.highlights = [{"shape": "box", "region": order[(k - 1) % len(order)]}]
+                elif k and div.get("auto_highlights", True):
+                    # never invented: only a real, narration-matched location (OCR / VLM
+                    # validated, src/locate.py); otherwise no highlight at all
+                    found = _locate_highlight(a, ctx.text_between(b.start_time, b.end_time))
+                    if found is None:
+                        continue
+                    b.highlights = [found]
                 else:
                     continue
                 stats["highlight"] += k > 0
@@ -188,6 +193,15 @@ def _embed_regions(backend: Any, asset: dict[str, Any], regions: list[list[float
         return np.asarray(vecs)
     except Exception:  # noqa: BLE001 - views are optional; fall back to anchor order
         return np.zeros((0, 1))
+
+
+def _locate_highlight(asset: dict[str, Any], narration: str) -> dict[str, Any] | None:
+    try:
+        from src.locate import locate
+
+        return locate(asset["filepath"], narration)
+    except Exception:  # noqa: BLE001 - optional; no location -> no highlight
+        return None
 
 
 def _ink_regions(asset: dict[str, Any], top: int = 4) -> list[str]:

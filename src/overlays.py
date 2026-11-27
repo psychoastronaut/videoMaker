@@ -68,7 +68,7 @@ def parse_highlight(spec: str, shape: str = "box") -> dict[str, Any] | None:
     """``x,y,w,h | label | start`` or ``region | label | start`` -> highlight dict."""
     parts = [p.strip() for p in spec.split("|")]
     head = parts[0].lower().replace("_", "-")
-    h: dict[str, Any] = {"shape": shape}
+    h: dict[str, Any] = {"shape": shape, "source": "sidecar"}  # explicit: always honoured
     nums = re.findall(r"-?\d+(?:\.\d+)?", parts[0])
     if len(nums) >= 4 and not head.isalpha():
         h.update(dict(zip("xywh", (float(n) for n in nums[:4]), strict=True)))

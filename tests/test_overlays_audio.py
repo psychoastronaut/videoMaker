@@ -16,7 +16,7 @@ def test_new_beat_fields_backward_compatible():
 def test_highlight_parsing_and_boxes():
     h = overlays.parse_highlight("0.5,0.3,0.2,0.1 | Latency link | 1.5")
     assert h == {"shape": "box", "x": 0.5, "y": 0.3, "w": 0.2, "h": 0.1,
-                 "label": "Latency link", "start": 1.5}
+                 "label": "Latency link", "start": 1.5, "source": "sidecar"}
     assert overlays.parse_highlight("top-left")["region"] == "top-left"
     assert overlays.parse_highlight("nonsense") is None
     assert overlays.resolve_box(h, (0, 100, 1000, 500), 1920) == (500, 250, 200, 50)

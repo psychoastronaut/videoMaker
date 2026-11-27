@@ -239,7 +239,8 @@ def plan_is_hand_edited(work: Path) -> bool:
         return False  # corrupt: nothing worth protecting
     if not beats:
         return False
-    return _load_state(work).get("plan_sig") != _plan_signatures(work)[0]
+    state = _load_state(work)
+    return bool(state.get("hand_edited")) or state.get("plan_sig") != _plan_signatures(work)[0]
 
 
 def _record_state(key: str, work: Path) -> None:
@@ -256,6 +257,7 @@ def _record_state(key: str, work: Path) -> None:
     elif key == "plan":  # a fresh plan invalidates the downstream stamps
         state.pop("fetch", None)
         state.pop("cutouts", None)
+        state.pop("hand_edited", None)
         state["plan_sig"] = auth
     else:
         return
@@ -513,6 +515,39 @@ def render(episode_id: str = typer.Argument(..., help="Episode ID"),
             console.print(f"  [dim]{stage.title}: {reason}[/]")
             _execute(stage, episode_id, ep / "work")
     _single("render", episode_id, draft=True) if draft else _single("render", episode_id)
+
+
+@app.command()
+def fix(
+    episode_id: str = typer.Argument(..., help="Episode ID"),
+    instruction: str | None = typer.Argument(None, help='Correction in PT or EN, e.g. "no 0:08 troque o clipe"'),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Apply without asking"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show the diff, change nothing"),
+    interactive: bool = typer.Option(False, "--interactive", "-i", help="REPL: several fixes, undo, render"),
+    review: bool = typer.Option(False, "--review", help="Auto-review every beat (VLM + SigLIP)"),
+    apply: bool = typer.Option(False, "--apply", help="With --review: apply the proposals"),
+    scan_text: bool = typer.Option(False, "--scan-text", help="With --review: scan ALL assets for burned-in text"),
+    no_render: bool = typer.Option(False, "--no-render", help="Edit the plan only"),
+) -> None:
+    """Agentic point fixes of scene_plan.json by a local LLM (see docs/USAGE.md, Fix mode)."""
+    from src import agent_fix
+
+    get_episode_dir(episode_id)
+    try:
+        if review:
+            agent_fix.review(episode_id, apply=apply, yes=yes, scan_all=scan_text,
+                             render=not no_render)
+        elif interactive:
+            agent_fix.interactive(episode_id, yes=yes, render=not no_render)
+        elif instruction:
+            agent_fix.run_fix(episode_id, instruction, yes=yes, dry_run=dry_run,
+                              render=not no_render)
+        else:
+            console.print("[red]Give an instruction, or use --interactive / --review.[/]")
+            raise typer.Exit(2)
+    except agent_fix.FixError as e:
+        console.print(f"[red]{e}[/]")
+        raise typer.Exit(1) from e
 
 
 @app.command()

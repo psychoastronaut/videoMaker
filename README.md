@@ -33,6 +33,7 @@ voiceover ─▶ 0 voice ─▶ 1 transcribe ─▶ 2 index ─▶ 3 plan ─▶
 | 4 Stock | Optional free stock (NASA, Wikimedia Commons, Openverse CC0/PDM, Internet Archive, Smithsonian; Pexels/Pixabay with a key) with visual verification and `licenses_audit.json` |
 | 5 Cutouts | rembg (`birefnet-general-lite`, fallback isnet/u2net), alpha clean-up, quality gate that swaps a bad cut-out for a framed card; badges and lower-thirds |
 | 6 Render | One FFmpeg encode per beat (cached), xfade transitions, perspective-warp camera moves, NVENC with x264 fallback, 2-pass loudnorm, QA gate, `--draft` preview |
+| Fix mode | `fix <ep> "instruction"` (PT/EN) edits the plan through a local LLM with diff, confirmation, undo and a before/after sheet; `--interactive`, `--review` (VLM burned-text / mismatch check); see docs/USAGE.md |
 | Dashboard | `dashboard` draws a live "AGENT PIPELINE" TUI (rich + PIL): stage state, GPU/VRAM, template mix, frame preview; can record or snapshot |
 | `new` | Scaffolds an episode folder with a lean config, checklist and a documented sidecar template |
 

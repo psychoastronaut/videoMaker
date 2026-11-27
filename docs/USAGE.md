@@ -120,6 +120,58 @@ Inside tmux the graphics protocols are disabled by default; run the dashboard in
 window for full resolution.
 
 
+## Fix mode (agentic point corrections)
+
+`fix` edits `work/scene_plan.json` from a plain-language instruction (PT or EN). A local LLM
+(Ollama `/api/chat` with a JSON schema; the model from `llm.model`) only fills an action list;
+code locates the beat, picks assets from the SigLIP/semantic index, validates, shows a diff and
+asks before writing. 100% local; no network. If Ollama is down it stops with a clear message.
+
+```bash
+python -m src.cli --config episodes/ep-hubble/config.yaml fix ep-hubble \
+  "no 0:08 aparece um clipe de 2009 com legenda, troque por algo do Hubble sendo liberado"
+python -m src.cli ... fix ep-hubble "remova esse clipe do projeto inteiro" --yes
+python -m src.cli ... fix ep-hubble "no 0:30 dê zoom no canto superior esquerdo" --dry-run
+python -m src.cli ... fix ep-hubble --interactive     # several fixes, `undo`, `render`, `quit`
+python -m src.cli ... fix ep-hubble --review [--apply] [--scan-text]
+```
+
+* Actions: `replace_asset` (by name or by semantic query; top-k outside the bad asset, avoiding
+  assets used nearby), `exclude_asset` (project-wide), `change_template`, `set_crop`/`set_zoom`
+  (`crop_region`, stills and clips), `set_trim`, `set_callout`/`remove_callout`,
+  `set_transition`, `split_beat`/`merge_beats`, `move_overlay` (PiP corner), `remove_highlight`.
+* Locating the beat: final-video time ("no 0:08": plan time + the branding intro card; silence
+  removal already happened in the voice chain, so the plan timeline is the narration timeline),
+  narration time, a spoken quote ("quando eu falo 1990"), a beat id, or an asset. "esse clipe"
+  refers to the asset the previous fix touched (`work/fix_log.jsonl`).
+* Safety: diff first (beat, time, speech, before -> after), `--yes` to skip the prompt,
+  `--dry-run` to only look. Backup `work/scene_plan.prev.json`, undo stack `work/fix_undo/`,
+  log `work/fix_log.jsonl`. The plan is marked hand-edited, so `run` never overwrites it
+  (`plan --force` regenerates). Only local, already-licensed assets are chosen; stock is never
+  fetched and the fix render runs with `VIDEOMAKER_OFFLINE=1`.
+* Exclusion: `exclude: true` is appended to the asset's sidecar `.txt` and the id is listed in
+  `work/excluded_assets.json`. Stages 2, 2a and 3 and the semantic retrieval skip such assets;
+  every beat that used it is re-assigned in the same fix.
+* After applying, only the changed beats are re-rendered (`work/render_cache`), a before/after
+  contact sheet is written to `work/fix_preview.png`, and the video path is printed.
+  `--no-render` edits the plan only.
+* `--review`: per beat, takes a frame of the beat's asset, asks the VLM (`qwen2.5vl:3b`)
+  whether it fits the speech and whether there is burned-in text (subtitle, watermark, a year
+  the narration does not say), and flags highlights that have no real position. Suspects are
+  listed with a reason and a proposed fix (`work/fix_review.json`); `--apply` applies them
+  after confirmation. `--scan-text` scans every asset and records `burned_text` in
+  `local_assets.json` / `work/burned_text.json`; the planner then avoids those assets (or crops
+  a thin caption band away via `crop_box`).
+
+### Automatic diagram highlights
+
+A highlight box is drawn only when its position is real: an explicit `highlight:` line in the
+sidecar, or a box found by local OCR (optional `easyocr` / `pytesseract`) or by the VLM and
+validated by reading the cropped region back, and in both cases matching the narration. Boxes
+are padded, never cover the title/caption band and are capped at 30 % of the picture. No
+reliable location means no highlight. Old plans with a bare `region: top|bottom` highlight are
+skipped at render time (warning `highlight skipped`).
+
 ## Other commands
 
 `create-demo [ep]` builds a synthetic offline episode; `inspect`, `status` as above.

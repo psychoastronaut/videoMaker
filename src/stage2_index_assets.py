@@ -80,6 +80,26 @@ def run(episode_id: str, work_dir: Path) -> dict:
     except Exception as e:  # noqa: BLE001
         console.print(f"  [yellow]Letterbox detection failed, continuing without it: {e}[/]")
 
+    try:  # fix mode: excluded assets leave the index; burned-in text flags are re-applied
+        from src.common import excluded_ids, load_burned
+
+        bad = excluded_ids(work_dir, data["assets"])
+        if bad:
+            for a in data["assets"]:
+                if a["id"] in bad:
+                    data["skipped"].append({"file": a["filepath"], "reason": "excluded (exclude: true)"})
+            data["assets"] = [a for a in data["assets"] if a["id"] not in bad]
+            console.print(f"  Excluded from the index: {len(bad)} asset(s)")
+        for aid, info in load_burned(work_dir).items():
+            for a in data["assets"]:
+                if a["id"] == aid and info.get("text"):
+                    a["burned_text"] = info
+                    box = info.get("crop_box")
+                    if box and not a.get("crop_box"):
+                        a["crop_box"] = box
+    except Exception as e:  # noqa: BLE001
+        console.print(f"  [yellow]Exclusion/burned-text flags skipped: {e}[/]")
+
     output_path = work_dir / "local_assets.json"
     write_json(output_path, data)
 
