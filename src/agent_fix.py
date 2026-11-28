@@ -1338,6 +1338,17 @@ def review(episode_id: str, *, apply: bool = False, yes: bool = False, scan_all:
                                  "beat": {"by": "beat_id", "value": str(b["id"])},
                                  "query": q, "asset": hits[0]["asset"]}
         suspects = [x for x in suspects if x.reasons]
+        from src import polish as polish_mod
+
+        by_beat = {x.beat: x for x in suspects}
+        for bid, kind, msg in polish_mod.audit(
+                ctx.beats, polish_mod.assets_by_id(list(ctx.assets.values())), ctx.words, ctx.cfg):
+            sp = by_beat.get(bid)
+            if sp is None:
+                sp = by_beat[bid] = Suspect(bid, [])
+                suspects.append(sp)
+            sp.reasons.append(f"editing ({kind}): {msg}; `polish {episode_id}` fixes it")
+        suspects.sort(key=lambda x: x.beat)
         _print_review(ctx, suspects)
         write_json(ctx.work / "fix_review.json", [
             {"beat": x.beat, "reasons": x.reasons, "action": x.action} for x in suspects])

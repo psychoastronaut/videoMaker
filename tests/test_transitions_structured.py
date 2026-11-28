@@ -123,7 +123,7 @@ def test_resolve_joins_limits():
              _b(3, "technical", transition_duration=2.0), _b(4, "technical"),
              _b(5, "technical", transition="none")]
     spans = [90, 90, 90, 90, 12, 90]   # beat 4 is 0.4 s: 0.4*12=4.8 frames max
-    j = resolve_joins(beats, spans, 30)
+    j = resolve_joins(beats, spans, 30, allow_motion=True)
     assert j[0] == Join()                       # never on the first beat
     assert j[1].name == "dissolve" and j[1].frames == round(0.35 * 1.15 * 30)
     assert j[2].name == "slideleft"

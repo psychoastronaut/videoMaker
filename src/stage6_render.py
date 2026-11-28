@@ -716,8 +716,13 @@ def _compile_cutout(beat: dict[str, Any], frames: int, ctx: CompileContext) -> F
     if has_cut:
         k = job.add_image(str(cut), s.fps)
         job.add_chain(_fade_in_chain(k, "cut", ctx.head))
-        x = _slide(f"main_w-overlay_w-{s.sx(130)}", s.sx(280), e, delay=ctx.head)
-        job.add_chain(f"[{last}][cut]overlay=x='{x}':y='(main_h-overlay_h)/2':format=auto[o1]")
+        # short entrance (fade + a 60 px settle, not a long slide) and a slow continuous drift
+        # (a few px/s horizontally, gentle float vertically) so the subject never looks frozen
+        t0 = f"max(t-{ctx.head:.3f},0)"
+        x = _slide(f"main_w-overlay_w-{s.sx(130)}", s.sx(60), e, delay=ctx.head)
+        x = f"{x}-{t0}*{s.sx(6)}"
+        y = f"(main_h-overlay_h)/2+sin({t0}*0.9)*{s.sy(6)}"
+        job.add_chain(f"[{last}][cut]overlay=x='{x}':y='{y}':format=auto[o1]")
         last = "o1"
     badge = beat.get("badge_path")
     if beat.get("callout_text") and _exists(badge):
@@ -1013,6 +1018,16 @@ def run(episode_id: str, work_dir: Path, draft: bool = False) -> dict[str, Any]:
                         "the last beat was stretched/trimmed to match the audio")
     resolver = AssetResolver(work_dir)
     warnings.extend(prepare_beats(beats, resolver))
+    try:  # editing QA: short beats, unreadable diagrams, sideways joins, static overlays, repeats
+        from src import polish
+
+        la = work_dir / "local_assets.json"
+        assets_by = polish.assets_by_id(read_json(la)) if la.is_file() else {}
+        warnings.extend(f"polish: beat {bid} ({kind}): {msg}" for bid, kind, msg in polish.audit(
+            beats, assets_by, polish.transcript_words(transcript), config,
+            glitch=s.glitch_transitions))
+    except Exception as e:  # noqa: BLE001 - QA hints must never stop a render
+        warnings.append(f"polish audit skipped ({e})")
 
     branded = s.branding and not draft
     intro_dur = round(s.intro_seconds * s.fps) / s.fps if branded else 0.0
@@ -1136,8 +1151,13 @@ def run(episode_id: str, work_dir: Path, draft: bool = False) -> dict[str, Any]:
                                duration, episode_id, out_dir / "timeline_summary.md", join_info,
                                outro=hold + outro_dur, intro=intro_dur)
 
+    static_spans = [
+        (intro_dur + float(b["start_time"]), intro_dur + float(b["end_time"])) for b in beats
+        if str(b.get("source_id") or "").startswith("schematic")
+        or str(b.get("visual_template")) in ("split_schematic",
+                                              "VisualTemplate.split_schematic")]
     qa = qa_gate(output_path, out_dir, warnings, video_dur + intro_dur + outro_dur,
-                 lead=intro_dur, tail_card=outro_dur)
+                 lead=intro_dur, tail_card=outro_dur, static_spans=static_spans)
     with (out_dir / "timeline_summary.md").open("a", encoding="utf-8") as fh:
         fh.write("\n## QA gate\n\n" + (
             "Passed: no black gaps, no freeze > 4 s, no silence > 1.5 s, loudness on target.\n"
@@ -1256,7 +1276,8 @@ def _prune_cache(cache_dir: Path, keep: set[Path], max_age_days: float = 14.0) -
 
 
 def qa_gate(video: Path, out_dir: Path, warnings: list[str], expected: float,
-            lead: float = 0.0, tail_card: float = 0.0) -> dict[str, Any]:
+            lead: float = 0.0, tail_card: float = 0.0,
+            static_spans: list[tuple[float, float]] | None = None) -> dict[str, Any]:
     """Post-render QA in ONE ffmpeg pass: blackdetect + freezedetect (>4 s only: slow pans on
     stills trip shorter windows) + silencedetect + ebur128. Writes out/qa_report.json."""
     cmd = ["ffmpeg", "-hide_banner", "-nostats", "-i", str(video),
@@ -1276,6 +1297,10 @@ def qa_gate(video: Path, out_dir: Path, warnings: list[str], expected: float,
     black = spans("black_start", "black_end")
     freeze = spans("lavfi.freezedetect.freeze_start", "lavfi.freezedetect.freeze_end")
     silence = spans("silence_start", "silence_end")
+    # diagrams are meant to sit still while the viewer reads: not a QA freeze
+    freeze = [f for f in freeze
+              if not any(f["start"] >= a - 0.3 and f["end"] <= b + 0.3
+                         for a, b in (static_spans or []))]
     summary = err[err.rfind("Summary:"):] if "Summary:" in err else ""
 
     def num(label: str) -> float | None:

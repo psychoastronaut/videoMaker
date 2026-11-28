@@ -108,6 +108,19 @@ def run(episode_id: str, work_dir: Path) -> dict[str, Any]:
             console.print(f"  Sidecar hints applied to {n_hints} beats (audio/pip/highlights)")
     except Exception as e:  # noqa: BLE001 - optional layer
         console.print(f"  [yellow]Sidecar hints skipped ({e})[/]")
+    try:  # editing rules: no sideways transitions, reading time, min beat length, no tail repeats
+        from src import polish
+
+        beats, rep = polish.polish_beats([b.model_dump(mode="json") for b in plan.beats],
+                                         polish.assets_by_id(list(ctx.assets)),
+                                         polish.transcript_words(transcript), config,
+                                         glitch=bool((config.get("render") or {}).get("glitch_transitions")))
+        plan = type(plan).model_validate({**plan.model_dump(mode="json"), "beats": beats})
+        if rep.changes:
+            console.print(f"  Polish: {len(rep.changes)} editing fixes "
+                          f"({rep.before['beats']} -> {rep.after['beats']} beats)")
+    except Exception as e:  # noqa: BLE001 - optional layer; never break planning
+        console.print(f"  [yellow]Polish skipped ({e})[/]")
     plan_file = work_dir / "scene_plan.json"
     if plan_file.is_file():  # never lose a previous (possibly hand-edited) plan
         shutil.copy2(plan_file, work_dir / "scene_plan.prev.json")
@@ -813,8 +826,7 @@ CHUNK_SYSTEM = (
     "You are the editor of a fast, engineering-focused YouTube channel. For each numbered beat "
     "(a narration line already cut to length) choose how it is shown. Reply with JSON only.")
 _TEMPLATES_LLM = {"fullscreen_clip", "punch_in_emphasis"}
-_TRANSITIONS_LLM = ("none", "crossfade", "dissolve", "fadeblack", "zoomin", "smoothleft",
-                    "slideleft", "wipeleft")
+_TRANSITIONS_LLM = ("none", "crossfade", "dissolve", "fadeblack", "zoomin")
 _HARD = {"hype", "fail"}   # energetic beats are cut, not blended
 _HARD_OK = {"none", "zoomin"}
 
@@ -851,7 +863,7 @@ def _chunk_prompt(group: list[SceneBeat], texts: dict[int, str],
         "fullscreen_clip (b-roll) or punch_in_emphasis (key moment, at most 2 per 5 beats). "
         "transition = how the cut INTO that beat looks: none (hard cut; DEFAULT, use for "
         "most beats), crossfade or dissolve (rare, only between two long calm beats), fadeblack or zoomin "
-        "(a new topic), smoothleft/slideleft/wipeleft (rare). "
+        "(a new topic); never slide/wipe/push joins. "
         + (hint or "callout: 2-4 word Title Case noun-phrase label of a technical term from "
            "the line, or null. ") + "\n"
         "VARIETY: never use the same visual_template 3 beats in a row; use at least 2 "

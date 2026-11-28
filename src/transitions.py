@@ -27,6 +27,9 @@ XFADE: dict[str, str] = {
     "glitchblur": "hblur",
 }
 GLITCH = ("glitch", "glitchslice", "glitchblur")
+# joins that slide/wipe the picture sideways: valid names, but never used unless asked for
+# (``allow_motion``): viewers read them as amateur, and the polish pass rewrites them
+MOTION = ("smoothleft", "slideleft", "wipeleft")
 NAMES = tuple(XFADE)
 _ALIASES = {"cut": "none", "hard_cut": "none", "fade": "crossfade", "xfade": "crossfade",
             "fade_black": "fadeblack", "dip_to_black": "fadeblack", "fade_white": "fadewhite"}
@@ -81,7 +84,8 @@ class Join:
 
 def resolve_joins(beats: list[dict[str, Any]], spans: list[int], fps: int, *,
                   enabled: bool = True, default_duration: float = DEFAULT_DURATION,
-                  chapters: set[int] | None = None, max_group: int = MAX_GROUP, glitch: bool = False) -> list[Join]:
+                  chapters: set[int] | None = None, max_group: int = MAX_GROUP, glitch: bool = False,
+                  allow_motion: bool = False) -> list[Join]:
     """One Join per beat (the first is always a cut). Enforces: overlap < 40% of the shorter
     neighbour, >= MIN_FRAMES, head+tail of a middle beat leave a visible body, and at most
     ``max_group`` beats per xfade run. Beat ids in ``chapters`` start a chapter."""
@@ -93,6 +97,8 @@ def resolve_joins(beats: list[dict[str, Any]], spans: list[int], fps: int, *,
     for i in range(1, len(beats)):
         b = beats[i]
         name = b.get("transition") or auto_transition(b, beats[i - 1], int(b["id"]) in chapters, glitch)
+        if name in MOTION and not allow_motion:
+            name = "crossfade"
         if not XFADE.get(name):
             run = 1
             continue

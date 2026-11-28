@@ -545,6 +545,23 @@ def render(episode_id: str = typer.Argument(..., help="Episode ID"),
 
 
 @app.command()
+def polish(
+    episode_id: str = typer.Argument(..., help="Episode ID"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show the diff, change nothing"),
+) -> None:
+    """Editing rules on the existing plan: no sideways transitions, diagram reading time, minimum
+    beat length, no repeats in the ending, purposeful overlays (see docs/USAGE.md, Polish)."""
+    from src import polish as polish_mod
+
+    get_episode_dir(episode_id)
+    try:
+        polish_mod.run(episode_id, dry_run=dry_run)
+    except FileNotFoundError as e:
+        console.print(f"[red]{e}[/]")
+        raise typer.Exit(1) from e
+
+
+@app.command()
 def fix(
     episode_id: str = typer.Argument(..., help="Episode ID"),
     instruction: str | None = typer.Argument(None, help='Correction in PT or EN, e.g. "no 0:08 troque o clipe"'),

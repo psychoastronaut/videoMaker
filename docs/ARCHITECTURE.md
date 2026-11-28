@@ -37,7 +37,7 @@ protected unless `--force`.
 | `overlay_asset` | Split: diagram (right). Cutout: subject to cut out |
 | `callout_text` | 2-5 words: badge (cutout/split) or lower-third |
 | `emphasis` | Micro-punch at beat start |
-| `transition`, `transition_duration` | Join INTO this beat: `none`, `crossfade`, `dissolve`, `fadeblack`, `fadewhite`, `zoomin`, `smoothleft`, `slideleft`, `wipeleft` (+ glitch variants from the theme); overlap must stay below 40 % of the shorter neighbour |
+| `transition`, `transition_duration` | Join INTO this beat: `none`, `crossfade`, `dissolve`, `fadeblack`, `fadewhite`, `zoomin` (`smoothleft`/`slideleft`/`wipeleft` are accepted but rendered as `crossfade`) (+ glitch variants from the theme); overlap must stay below 40 % of the shorter neighbour |
 | `media_start`, `media_end`, `overlay_start` | Trims (seconds) |
 | `clip_audio`, `clip_audio_gain` | `off|on|duck` |
 | `overlay_mode: pip`, `pip_asset`, `pip_corner`, `pip_start`, `pip_delay` | Picture-in-picture |
