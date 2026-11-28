@@ -611,7 +611,14 @@ def apply_semantic(plan: ScenePlan, ctx: Any, work: Path, config: dict[str, Any]
             rows.append({"id": b.id, "text": texts[b.id], "query": queries[b.id][0],
                          "cands": [(h.asset_id, h.score, _desc(ctx.assets_by_id.get(h.asset_id),
                                                                h)) for h in cands[b.id][:k]]})
-    picks = llm_pick(llm, rows, cache_dir / "picks.json" if cache_dir else None) if (llm.ok and rows and cfg.get("llm_pick", True)) else {}
+    dec = getattr(ctx, "decision", None)
+    use_llm_pick = llm.ok and rows and cfg.get("llm_pick", True) \
+        and getattr(ctx, "planner_mode", "llm") != "decision"
+    picks = llm_pick(llm, rows, cache_dir / "picks.json" if cache_dir else None) \
+        if use_llm_pick else {}
+    if dec is not None and dec.enabled and by_beat:
+        _decide_assets(dec, beats, ctx, texts, by_beat, index, priors,
+                       kinds, config)
     DEBUG.clear()
     DEBUG["min_score"] = min_score
     DEBUG.update({"queries": queries, "kinds": dict(kinds), "picks": picks,
@@ -718,6 +725,13 @@ def apply_semantic(plan: ScenePlan, ctx: Any, work: Path, config: dict[str, Any]
                 last_used[x] = b.end_time
                 uses[x] = uses.get(x, 0) + 1
             reason = f"semantic {backend.name} {chosen.score:.2f}"
+            if dec is not None and b.id in dec.p_asset:
+                pa = dec.p_asset[b.id]
+                aid = b.source_id if b.source_id in pa else chosen.asset_id
+                if aid in pa:
+                    top = max(pa, key=pa.__getitem__)
+                    reason += f" | decision:{dec.name} asset p={pa[aid]:.2f}" + (
+                        "" if top == aid else f" (top {pa[top]:.2f})")
             b.beat_reason = f"{b.beat_reason} | {reason}" if b.beat_reason else reason
         elif b.primary_source == PrimarySource.LOCAL and b.source_id in index.asset_ids():
             vs = by_beat.get(b.id)
@@ -827,6 +841,10 @@ def _global_choices(beats: list[Any], ctx: Any, texts: dict[int, str],
     col = {a: j for j, a in enumerate(ids)}
     types = [ctx.assets_by_id[a]["asset_type"] for a in ids]
     clip_bonus = float(cfg.get("clip_bonus", 0.07))
+    dec = getattr(ctx, "decision", None)
+    gate_bonus = 0.0
+    if dec is not None:
+        gate_bonus = float(dec.cfg["weight"]) * float(dec.cfg["gate_p"])
     states = {a: sidecar_state(ctx.assets_by_id[a]) for a in ids}
     mat = np.full((len(rows), len(ids)), -np.inf)
     hits: dict[tuple[int, str], Hit] = {}
@@ -838,17 +856,22 @@ def _global_choices(beats: list[Any], ctx: Any, texts: dict[int, str],
                     continue
                 a = ctx.assets_by_id[h.asset_id]
                 pr = priors[b.id].get(h.asset_id, 0.0)
+                dbonus = dec.asset_bonus(b.id, h.asset_id) if dec is not None else None
                 if h.asset_type == "schematic":
                     if b.duration < 2.4:  # too short to read a diagram
                         continue
                     ov = text_overlap(a, texts[b.id] + " " + queries[b.id][0])
-                    if ov < 1 and not (kinds.get(b.id) == "schematic" and pr >= 0.03):
+                    chosen_by_model = dbonus is not None and dbonus >= gate_bonus
+                    if ov < 1 and not (kinds.get(b.id) == "schematic" and pr >= 0.03) \
+                            and not chosen_by_model:
                         continue
                     val = 0.06 + 0.07 * min(ov, 3) + pr + 0.05 * (kinds.get(b.id) == "schematic")
                 else:
                     val = h.rank + (clip_bonus if (act and h.asset_type == "clip")
                                     else 0.02 if h.asset_type == "clip" else 0.0)
                 val += state_penalty(texts[b.id], states.get(h.asset_id))
+                if dbonus:
+                    val += dbonus
                 if picks.get(b.id) == h.asset_id:
                     val += 0.04
                 j = col[h.asset_id]
@@ -874,6 +897,30 @@ def _global_choices(beats: list[Any], ctx: Any, texts: dict[int, str],
         if j is not None and (b.id, ids[j]) in hits:
             out[b.id] = hits[(b.id, ids[j])]
     return out
+
+
+def _decide_assets(dec: Any, beats: list[Any], ctx: Any, texts: dict[int, str],
+                   by_beat: dict[int, list[np.ndarray]], index: SemanticIndex,
+                   priors: dict[int, dict[str, float]], kinds: dict[int, str],
+                   config: dict[str, Any]) -> None:
+    """Ask the decision model which of the top-K candidates fits each local beat; the result
+    (dec.p_asset) is blended into the global assignment matrix."""
+    from src.decision_planner import candidate_union
+
+    total = ctx.duration
+    rows = []
+    for i, b in enumerate(beats):
+        if b.primary_source != PrimarySource.LOCAL or not by_beat.get(b.id):
+            continue
+        cands = [(a, c) for a, c in candidate_union(
+            index, by_beat[b.id], priors[b.id], ("clip", "image", "schematic"),
+            int(dec.cfg["candidates"])) if a in ctx.assets_by_id]
+        rows.append({"id": b.id, "cands": cands, "start": b.start_time, "end": b.end_time,
+                     "state": dec.state_for(i, beats, texts, total)})
+    t0 = time.monotonic()
+    dec.decide_assets(rows, ctx.assets_by_id)
+    console.print(f"  Decision model ({dec.name}) rated {len(dec.p_asset)}/{len(rows)} beats "
+                  f"in {time.monotonic() - t0:.0f}s")
 
 
 def _diagram_override(b: Any, chosen: Hit, search: Callable[..., list[Hit]], ctx: Any,

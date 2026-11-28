@@ -76,12 +76,37 @@ def run(episode_id: str, work_dir: Path) -> dict[str, Any]:
     assets = drop_burned(drop_excluded(assets_data.get("assets", []), work_dir), work_dir)
     ctx = PlanContext(config, assets, words, duration, pool)
 
-    plan = _try_llm_plan(transcript, ctx, episode_id)
+    from src.decision_planner import DecisionPlanner, planner_mode
+
+    mode = planner_mode(config)
+    ctx.planner_mode = mode
+    ctx.decision = DecisionPlanner(config, work_dir) if mode != "llm" and not is_offline() \
+        else None
+    try:
+        return _plan_with(ctx, transcript, config, episode_id, work_dir, mode)
+    finally:
+        if ctx.decision is not None:
+            ctx.decision.close()
+
+
+def _plan_with(ctx: PlanContext, transcript: dict[str, Any], config: dict[str, Any],
+               episode_id: str, work_dir: Path, mode: str) -> dict[str, Any]:
+    dec = ctx.decision
+    # `decision`: the 14B planner is skipped (rules + decision model); `hybrid`: LLM first
+    plan = _try_llm_plan(transcript, ctx, episode_id) if mode != "decision" else None
     if plan is None:
         console.print("  [dim]Using deterministic planner[/]")
         plan = _generate_deterministic_plan(ctx, episode_id)
     else:
         console.print("  [green]LLM plan accepted[/] (repairing/normalising)")
+    if dec is not None:
+        try:
+            texts0 = {b.id: ctx.text_between(b.start_time, b.end_time) for b in plan.beats}
+            counts = dec.apply_beat_decisions(plan.beats, dec.decide_beats(
+                plan.beats, texts0, ctx.duration))
+            console.print(f"  Decision model ({dec.name}, {mode}): overrode {counts}")
+        except Exception as e:  # noqa: BLE001 - optional layer; never break planning
+            console.print(f"  [yellow]Decision layer skipped ({e})[/]")
 
     plan = _validate_and_repair(plan, ctx)
     try:

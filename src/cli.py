@@ -473,6 +473,17 @@ def eval_matching(
     em.run(ep / "work", backend, pairs)
 
 
+@app.command("eval-plan")
+def eval_plan(
+    episode_id: str = typer.Argument(..., help="Episode ID (needs work/scene_plan.json)"),
+    scene_map: Path | None = typer.Option(None, "--map", help="scene_map.json (default raw/)"),  # noqa: B008
+) -> None:
+    """Score the current scene plan against raw/scene_map.json (intended/acceptable assets)."""
+    from src import eval_plan as ep_
+
+    ep_.run(get_episode_dir(episode_id) / "work", scene_map)
+
+
 @app.command()
 def prefetch(episode_id: str = typer.Argument(..., help="Episode ID")) -> None:
     """Stage 2b only: pre-fetch a pool of free stock media from the script/transcript."""
@@ -484,14 +495,42 @@ def plan(
     episode_id: str = typer.Argument(..., help="Episode ID"),
     force: bool = typer.Option(False, "--force", "-f",
                                help="Overwrite a hand-edited scene_plan.json (backed up first)"),
+    planner: str | None = typer.Option(
+        None, "--planner", help="llm | decision | hybrid (overrides llm.planner; see "
+        "docs/USAGE.md, Decision planner)"),
 ) -> None:
     """Stage 3 only: (re)generate scene_plan.json."""
+    if planner is not None:
+        if planner not in {"llm", "decision", "hybrid"}:
+            console.print("[red]--planner must be llm, decision or hybrid[/]")
+            raise typer.Exit(2)
+        os.environ["VIDEOMAKER_PLANNER"] = planner
     work = get_episode_dir(episode_id) / "work"
     if not force and plan_is_hand_edited(work):
         console.print("[yellow]scene_plan.json was edited by hand; refusing to overwrite it. "
                       "Use `plan --force` (the current plan is saved to scene_plan.prev.json).[/]")
         raise typer.Exit(1)
     _single("plan", episode_id)
+
+
+@app.command()
+def describe(
+    episode_id: str = typer.Argument(..., help="Episode ID (needs work/local_assets.json)"),
+    vlm: str = typer.Option("qwen2.5vl:3b", "--vlm", help="Ollama vision model "
+                            "(qwen2.5vl:3b | qwen3-vl:8b)"),
+    write: bool = typer.Option(False, "--write", help="Save to the sidecars (`description:` line)"),
+    force: bool = typer.Option(False, "--force", help="Also re-describe assets that have text "
+                               "(old text saved to .bak)"),
+    list_only: bool = typer.Option(False, "--list", help="Only list assets without description"),
+    only: list[str] = typer.Option(None, "--only", help="Asset id (repeatable)"),  # noqa: B008
+) -> None:
+    """Short factual descriptions (vision model) for assets without or with weak descriptions."""
+    from src import describe as d
+
+    ep = get_episode_dir(episode_id)
+    if not (ep / "work" / "local_assets.json").is_file():
+        _single("index", episode_id)
+    d.run(ep / "work", vlm, write, force, only=list(only) if only else None, list_only=list_only)
 
 
 @app.command()

@@ -252,6 +252,105 @@ are padded, never cover the title/caption band and are capped at 30 % of the pic
 reliable location means no highlight. Old plans with a bare `region: top|bottom` highlight are
 skipped at render time (warning `highlight skipped`).
 
+## Polish (editing rules)
+
+```bash
+python -m src.cli --config episodes/my-ep/config.yaml polish my-ep --dry-run   # table of changes only
+python -m src.cli --config episodes/my-ep/config.yaml polish my-ep             # apply to work/scene_plan.json
+```
+
+`polish` applies the editing rules to an EXISTING plan (the same rules run inside `plan`/`run`
+for new plans). It prints a readable diff (beat, rule, change, beats and transitions before/after,
+diagram seconds shown vs needed), saves `work/scene_plan.prev.json`, marks the plan hand-edited
+(like `fix`) and keeps the total duration and contiguity: only boundaries move or beats merge.
+
+* Transitions: no sideways moves (`slideleft`, `smoothleft`, `wipeleft` become `crossfade`, or
+  `dissolve` on technical beats); only cut, fade/dissolve/crossfade, fadeblack (and zoomin). The
+  renderer also maps them to a crossfade unless `allow_motion` is passed to `resolve_joins`.
+  Glitch joins stay only when `render.glitch_transitions` is on.
+* Reading time: a beat with a diagram stays up `max(3.5 s, 0.35 s x legible words + 1 s)`, at most
+  9 s (legible words: quoted labels and capitalised words of the sidecar text). The time comes from
+  the next beat (the diagram stays during the following phrase; boundaries snap to word starts),
+  short neighbours are absorbed, at most 1 s from the previous beat; other diagrams are never robbed.
+* Minimum beat: 2.2 s (3 s for diagrams): extended from neighbours with slack, else merged.
+  A diagram beat is never merged away.
+* Ending: in the last 25 s no asset (or near-duplicate name: year/`_small` ignored) may appear that
+  was used in the 20 s before that window or earlier in the ending; it is replaced by a fresh
+  clip/image that shares words with the narration, else the beat is merged into a neighbour.
+* Overlays: a cutout (or PiP) whose subject is not named in the narration (sidecar words vs speech,
+  generic words like "hubble" ignored) becomes a plain fullscreen beat. At render a cutout enters with
+  a fade and a 60 px settle (not a long slide) and drifts slowly (a few px/s plus a gentle float).
+* QA: `render` adds `polish: beat N (kind): ...` warnings (short beat, unreadable diagram, sideways
+  join, uncited cutout, repeat in the ending) and `fix --review` lists the same beats. Thresholds
+  live under `polish:` in the config (`min_beat`, `min_text_beat`, `read_min`, `read_per_word`,
+  `read_extra`, `read_max`, `tail_window`, `repeat_window`, `generic_terms`).
+
+## Decision planner
+
+Optional planner that uses a Jev-style decision model (Ollama >= 0.35, `POST /v1/systemone`) for the
+editing decisions. It reads text only (narration + sidecar/caption descriptions) and returns
+calibrated probabilities. Default stays `llm`; see the measured results below before switching.
+
+```bash
+ollama pull nimble                        # 9B, Apache-2.0 (or tev1:4b, ~4x faster)
+python -m src.cli plan my-ep --planner decision --force     # rules + decision model, no 14B planner
+python -m src.cli plan my-ep --planner hybrid --force       # 14B plan first, decision model refines it
+# permanent: llm.planner: decision|hybrid, decision.model: nimble|tev1|tev1:4b|tev1:0.8b|<url>
+```
+
+Per beat the model gets the narration, the previous/next line, the position in the video and
+answers: `asset` (choice among the top 16 candidates: SigLIP top-k plus the sidecar prior, each
+described as "photo/video clip/diagram: sidecar text; caption"), `style`, `template`,
+`transition` (none/crossfade/dissolve/fadeblack only), and yes/no `cutout_named`,
+`callout_worthy`, `topic_change`.
+
+* Asset probabilities are added to the global assignment score (`decision.weight` x p / p_max per
+  beat), so reuse caps, the no-reuse window, clip share and near-duplicate families still apply.
+* Style/template/transition replace the current decision (LLM or rules) only when the top option
+  reaches `decision.thresholds.*`; otherwise it stays. `beat_reason` records the origin, e.g.
+  `decision:nimble asset p=0.62`, `decision:nimble style=hype p=0.71`.
+* Requests are cached in `work/decision_cache/` (hash of model + state + questions). Other
+  Ollama models are unloaded before the first call and the decision model after the last one
+  (one big model on the GPU at a time). `work/decision_stats.json` has calls/seconds/tokens;
+  `work/decision_assets.json` the per-beat probabilities.
+* If Ollama is too old, the model is missing or calls keep failing, the planner logs it and keeps
+  the existing plan. A choice accepts 2-26 options on Ollama; longer lists are narrowed in rounds.
+* `fix` and `polish` work on the resulting plan as before.
+
+### Describe assets
+
+Text descriptions are the model's only view of an asset. `describe` finds assets without a
+sidecar description (or a weak one: under 5 words / only filename words) and writes 1-2 factual
+sentences from a vision model as a `description:` line:
+
+```bash
+python -m src.cli describe my-ep --list              # only list assets by description quality
+python -m src.cli describe my-ep                     # dry run: print proposals
+python -m src.cli describe my-ep --write             # save to sidecars (never touches your free text)
+python -m src.cli describe my-ep --write --force --vlm qwen3-vl:8b   # redo all (old text -> .bak)
+```
+
+Re-run `index` and `semantic` afterwards. Review the output: small VLMs invent dates and text.
+
+### Measured on ep-hubble (24-scene ground truth, `eval-plan`)
+
+`python -m src.cli eval-plan my-ep` scores `work/scene_plan.json` against `raw/scene_map.json`
+(beat hit = it shows an intended/acceptable asset). About 44 beats are mapped, so one beat is
+about 2.3 points; planner runs were deterministic (repeats identical).
+
+| Planner | intended | acceptable | close repeats | planner time |
+|---|---|---|---|---|
+| llm (qwen2.5:14b) | 28 % (25 % cold) | 58 % (57 %) | 2 | 286 s warm, 584 s cold |
+| decision, nimble | 38 % | 60 % | 5 | 703 s cold (435 s decision calls); 47 s from cache |
+| hybrid, nimble | 38 % | 58 % | 6 | 658 s |
+| decision, tev1:4b | 39 % | 55 % | 5 | 151 s (102 s decision calls) |
+
+The model alone picks an intended asset for 70 % of beats (86 % acceptable among its 16
+candidates); the assignment rules (caps, no-reuse window) bring it down because the ground truth
+repeats the same diagram on neighbouring beats. Descriptions matter far more than the model:
+with opaque ids, no description gives 6 % intended, `qwen2.5vl:3b` descriptions 42-48 %,
+`qwen3-vl:8b` 48 %, the hand-written sidecars 65 %.
+
 ## Other commands
 
 `create-demo [ep]` builds a synthetic offline episode; `inspect`, `status` as above.
