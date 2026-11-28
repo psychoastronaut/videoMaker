@@ -30,12 +30,21 @@ Put media and sidecars in `episodes/my-ep/raw/` (see [ASSETS.md](ASSETS.md)) and
 
 ```bash
 python -m src.cli audio my-ep --report            # before/after numbers (see below)
-python -m src.cli audio my-ep --preset gentle     # podcast | gentle | aggressive
+python -m src.cli audio my-ep --preset podcast    # natural (default) | podcast | gentle | aggressive
 python -m src.cli audio my-ep --ab                # work/audio_ab/: listen and compare
 ```
 
 The original is kept as `raw/voiceover.orig.*`; the result is `work/voiceover_clean.wav`
 (mono, 48 kHz). Timings downstream refer to the shortened audio. All local.
+
+Preset `natural` (default) keeps the timbre of the real microphone: no 250 Hz mud cut, +1 dB
+presence, +1.5 dB air shelf (8 kHz) to give back what denoise takes, 2:1 compression, expander
+limited to 10 dB, RNNoise mix 0.45 (at strength 0.6), afftdn 8 dB, and notches inside the voice
+zone (85-1000 Hz) capped at -9 dB, narrow, and only for lines 12+ dB over the floor (a deep
+notch near the fundamentals/harmonics tints the voice and sounds like an old radio). Measured on
+ep-hubble vs the original (speech frames, level-matched): all bands within ~1.6 dB, no hole
+deeper than 4 dB, floor 48 dB under the voice (`podcast`: 51 dB, 2-3 dB tonal loss per band).
+`podcast`/`gentle`/`aggressive` keep their older, heavier settings.
 
 Chain: highpass -> automatic notches -> denoise (afftdn, then RNNoise) -> soft downward
 expander -> EQ -> de-esser -> compressor (no makeup) -> silence shortening -> limiter ->
@@ -46,7 +55,8 @@ stage and the expander threshold is set from the measured, already denoised floo
   spectrum is searched for narrow lines (hum, fan, whine at ANY frequency, harmonics included).
   Each line gets a narrow `equalizer` notch (width ~ the measured line, up to -26 dB). Found
   lines are listed in `work/audio_report.json` (`noise_analysis.tonal_peaks`, `notch_filters`).
-  `audio.notch: auto | off | [Hz, ...]` (a list forces those frequencies).
+  `audio.notch: auto | off | [Hz, ...]` (a list forces those frequencies; forced lines in the voice
+  zone are also depth-capped by the preset).
 * Denoise `audio.denoise: auto | rnnoise | afftdn | off`, `audio.denoise_strength` 0..1
   (default 0.6). `auto` = (a) `afftdn` whose noise level is calibrated on the longest
   pure-noise clip of this file, then (b) `arnndn` (RNNoise) at a conservative mix
@@ -67,12 +77,44 @@ stage and the expander threshold is set from the measured, already denoised floo
   relative to the voice (p90 of frame levels), SNR, energy of each tonal peak before/after
   (absolute and relative to the voice), and the 300-4000 Hz speech energy change in voiced
   frames after notches + denoise + expander (should stay within about 1 dB).
-* `--ab` writes `work/audio_ab/original.wav`, `atual.wav` (previous chain) and `novo.wav`: three
+* `--ab` writes `work/audio_ab/original.wav`, `atual.wav` (legacy chain), `podcast.wav` (previous
+  default preset) and `novo.wav` (configured preset, `natural` by default): three
   10 s excerpts with voice and a pause each (same timeline, 1 s apart, level matched, silence
   shortening off so they line up), `spectrogram_{original,atual,novo}.png` and `ab.json`
   with the excerpt start times.
 * Tuning: if the voice sounds watery or "chirpy", lower `denoise_strength` (try 0.4); if noise
   is still audible, raise it (0.8) or use `--preset aggressive`.
+
+## 3b. Music (Stage 5b)
+
+```bash
+python -m src.cli music my-ep --preview                 # work/music.wav + work/music_preview.wav (20 s voice + music)
+python -m src.cli music my-ep --source synth --mood calm
+```
+
+Hides voice-over noise with a quiet track. Sources (`music.source`, `auto` = first that works):
+`episode` (`raw/music/*`; the sidecar `<file>.txt` must say `license: CC0` and may give `author:`,
+`url:`), `library` (`assets/music/*`, same sidecars), `openverse` (CC0 / public-domain audio
+>= 60 s via the Openverse API, then Internet Archive and Wikimedia Commons when the licence is
+exactly CC0/PD; cached in `~/.cache/videomaker/music`), and `synth` (`src/music_synth.py`: dark
+ambient/synthwave, 80-100 BPM, minor modes, deterministic per episode; always available, the
+fallback when offline). CC-BY / CC-BY-SA / NC and Pixabay Music are never used;
+`stock_media.strict_cc0_only: true` also refuses PD-mark and undeclared sidecar licences.
+`music.mood`: `tense|calm|upbeat|auto` (auto reads the plan's `beat_style` mix).
+
+At render the track (looped/cross-faded over intro + voice + outro, normalised to
+`music.level_lufs`, default -29) starts low on the boot intro (`intro_gain`) and is lowered by
+`duck_db` (6) under speech with a smooth gain curve computed from the voice envelope
+(`work/music_ducked.wav`, no sidechain): speech gaps shorter than `hold` (2 s) never release the
+music, so it does not pump between phrases; only longer pauses let it rise (raised-cosine
+`release` 2.5 s, `attack` 0.25 s, `volume_in_pauses` dB extra). The track is also EQ-carved before levelling (`carve_db` -4 dB over `carve_lo`..`carve_hi`, 200-3000 Hz)
+to leave room for the voice; the synth keeps its pad/arp low in that band. Then fades in/out, limiter; the voice
+stays at -16 LUFS. `qa_report.json` gets a `music` block (voice, music and final LUFS; music
+must stay 18 dB under the voice in speech (energy pooled over speech frames); `pumping_db` = largest gain swing in any 1 s window
+outside intro/outro, about 3 dB at most; else a QA issue). `music.enabled: false` or
+`source: off` disables it; `run` creates the track before the render (Stage 5b, skipped while up
+to date); `--draft` renders without music. Source, author and licence land in
+`work/music_audit.json` and `out/licenses_audit.json` (`music`).
 
 ## 4. Run the pipeline
 

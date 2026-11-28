@@ -105,7 +105,7 @@ def _pad(spec: Spec, chords: list[tuple[int, int, int]], total: int, sr: int,
                 for cents in (-9, 0, 9):
                     voice += _saw(f * 2 ** (sign * cents / 1200), n, sr, float(rng.random()))
                 _add(out[ch], voice * env * 0.2, start)
-    pad = [_lp(_hp(c, 90, sr, 1), 2200, sr) for c in out]
+    pad = [_lp(_hp(c, 90, sr, 1), 1500, sr) for c in out]
     t = np.arange(total) / sr
     lfo = (0.8 + 0.2 * np.sin(2 * np.pi * 0.07 * t)).astype(np.float32)  # slow swell
     return pad[0] * lfo, pad[1] * lfo
@@ -143,9 +143,9 @@ def _arp_notes(spec: Spec, chords: list[tuple[int, int, int]], total: int, sr: i
             f = _hz(tones[pick])
             pluck = ((np.sin(2 * np.pi * f * t) + 0.35 * np.sin(4 * np.pi * f * t)
                       + 0.15 * _saw(f, n, sr, 0.0)) * np.exp(-t / 0.17)).astype(np.float32)
-            _add(left if k % 2 == 0 else right, pluck * vel * 0.3, at)
+            _add(left if k % 2 == 0 else right, pluck * vel * 0.2, at)
             k += 1
-    return _lp(left, 3200, sr), _lp(right, 3200, sr)
+    return _lp(left, 2600, sr), _lp(right, 2600, sr)
 
 
 def _hats(spec: Spec, total: int, sr: int, rng: np.random.Generator,

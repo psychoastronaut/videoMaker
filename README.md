@@ -32,9 +32,11 @@ voiceover ─▶ 0 voice ─▶ 1 transcribe ─▶ 2 index ─▶ 3 plan ─▶
 | 3 Plan | Deterministic cuts on pauses + a local LLM (Ollama, JSON-schema output, blocks of 5 beats) that picks templates, styles, callouts and assets; global asset assignment with reuse caps; falls back to a deterministic planner per block |
 | 4 Stock | Optional free stock (NASA, Wikimedia Commons, Openverse CC0/PDM, Internet Archive, Smithsonian; Pexels/Pixabay with a key) with visual verification and `licenses_audit.json` |
 | 5 Cutouts | rembg (`birefnet-general-lite`, fallback isnet/u2net), alpha clean-up, quality gate that swaps a bad cut-out for a framed card; badges and lower-thirds |
-| 5b Music | Background track under the voice: your own `raw/music/*`, `assets/music/*`, CC0/PD search (Openverse, Internet Archive, Commons; never CC-BY) or a built-in procedural synthesizer (original, no licence risk); sidechain-ducked against the voice at render, licence in `licenses_audit.json` |
+| 5b Music | Background track under the voice: your own `raw/music/*`, `assets/music/*`, CC0/PD search (Openverse, Internet Archive, Commons; never CC-BY) or a built-in procedural synthesizer (original, no licence risk); ducked under the voice with a smooth gain curve at render, licence in `licenses_audit.json` |
 | 6 Render | One FFmpeg encode per beat (cached), xfade transitions, perspective-warp camera moves, NVENC with x264 fallback, 2-pass loudnorm, QA gate, `--draft` preview |
 | Fix mode | `fix <ep> "instruction"` (PT/EN) edits the plan through a local LLM with diff, confirmation, undo and a before/after sheet; `--interactive`, `--review` (VLM burned-text / mismatch check); see docs/USAGE.md |
+| Polish | `polish <ep> [--dry-run]` applies editing rules to the plan (no sideways transitions, diagram reading time, minimum beat length, no repeats in the ending, purposeful overlays); also runs after `plan`; see docs/USAGE.md |
+| Decision planner | Optional (`plan --planner decision|hybrid`, `llm.planner`): a Jev-style decision model (`nimble`, `tev1`, Ollama `/v1/systemone`) rates assets/style/template/transition from text descriptions; `describe <ep>` writes missing descriptions with a VLM; `eval-plan <ep>` scores a plan against `raw/scene_map.json`; see docs/USAGE.md |
 | Dashboard | `dashboard` draws a live "AGENT PIPELINE" TUI (rich + PIL): stage state, GPU/VRAM, template mix, frame preview; can record or snapshot |
 | `new` | Scaffolds an episode folder with a lean config, checklist and a documented sidecar template |
 
@@ -134,7 +136,7 @@ Model weights keep their own licenses; verify them for your use.
 ## Roadmap
 
 - Better asset matching (more labelled episodes, stronger rerank)
-- Background music (CC0) with sidechain ducking
+- Background music (CC0) with smooth voice-following ducking
 - Animated diagrams; per-word alignment
 - Fewer cut-outs falling back to cards; better callouts
 

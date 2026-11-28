@@ -331,7 +331,7 @@ render:
 
 audio:                            # voice chain (ffmpeg only), runs before Stage 1: `audio <ep> [--report]`
   enabled: auto                   # auto = on when raw/voiceover.* exists | true | false
-  preset: podcast                 # podcast | gentle | aggressive
+  preset: natural                 # natural (default: faithful timbre) | podcast | gentle | aggressive
   target_lufs: -16.0
   true_peak: -1.5
   max_pause: 0.8                  # silences longer than this (s) are shortened...
@@ -343,12 +343,18 @@ music:                            # Stage 5b background track, ducked under the 
   enabled: auto                   # auto = on once work/music.wav exists (`run` makes it) | true = also build it at render | false
   source: auto                    # auto (episode > library > openverse > synth) | episode (raw/music/*) | library (assets/music/*) | openverse (CC0/PD only) | synth (original) | off
   mood: auto                      # auto (from the plan's beat_style mix) | tense | calm | upbeat (synth + search terms)
-  level_lufs: -22.0               # integrated loudness of the track before ducking (stem ends up ~ -30..-26 after ducking)
-  duck_db: 10.0                   # how much speech lowers the music (sidechain, release 400 ms)
+  level_lufs: -29.0               # integrated loudness of the track before ducking (>= 18 dB under the voice on speech after ducking)
+  duck_db: 6.0                    # speech lowers the music by this much (smooth gain curve from the voice envelope, no sidechain)
+  carve_db: -4.0                  # music EQ cut over carve_lo..carve_hi Hz (space for the voice); 0 = off
+  carve_lo: 200
+  carve_hi: 3000
+  hold: 2.0                       # speech gaps shorter than this (s) keep the music ducked: no pumping between phrases
+  attack: 0.25                    # s, duck ramp (ends at speech onset)
+  release: 2.5                    # s, slow raised-cosine rise after a pause longer than `hold`
   intro_gain: 0.35                # linear music level over the boot intro, ramping to 1.0 with the boot
-  volume_in_pauses: 2.0           # dB the music rises over pauses (before ducking)
+  volume_in_pauses: 0.0           # dB the music rises (above the un-ducked level) in long pauses
   seed: null                      # synth/choice seed; null = derived from the episode id
-  openverse: true                 # allow the online CC0/PD search in source: auto (offline mode skips it)
+  openverse: false                # allow the online CC0/PD search in source: auto (offline mode skips it)
   # strict_cc0_only: true         # inherits stock_media.strict_cc0_only; true = CC0 only (PD-mark and undeclared licences refused)
 
 stabilize:                        # shake smoothing of source clips (ffmpeg vidstab; OpenCV fallback)

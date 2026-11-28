@@ -10,6 +10,7 @@ to the full timeline (intro card + voice-over + outro card) and normalised to
 from __future__ import annotations
 
 import hashlib
+import itertools
 import json
 import random
 import re
@@ -59,11 +60,17 @@ class MusicCfg:
     enabled: str = "auto"          # auto | true | false
     source: str = "auto"
     mood: str = "auto"
-    level_lufs: float = -22.0      # integrated loudness of the track before ducking
-    duck_db: float = 10.0
+    level_lufs: float = -29.0      # integrated loudness of the track before ducking
+    duck_db: float = 6.0
+    carve_db: float = -4.0         # music EQ cut over carve_lo..carve_hi (room for the voice); 0 = off
+    carve_lo: float = 200.0
+    carve_hi: float = 3000.0
+    hold: float = 2.0              # speech gaps shorter than this (s) never release the music
+    attack: float = 0.25           # s, ramp down to the ducked level (finishes at speech onset)
+    release: float = 2.5           # s, slow raised-cosine rise after a long pause
     intro_gain: float = 0.35       # linear factor over the intro card, ramps to 1 by its end
     seed: int | None = None
-    volume_in_pauses: float = 2.0  # dB the music rises over long pauses
+    volume_in_pauses: float = 0.0  # dB the music rises over long pauses
     strict_cc0_only: bool = False
     openverse: bool = True
 
@@ -79,11 +86,17 @@ class MusicCfg:
             enabled=en if en in ("auto", "true", "false") else "auto",
             source=src if src in SOURCES else "auto",
             mood=mood if mood in MOODS else "auto",
-            level_lufs=float(m.get("level_lufs", -22.0)),
-            duck_db=max(float(m.get("duck_db", 10.0)), 0.0),
+            level_lufs=float(m.get("level_lufs", -29.0)),
+            duck_db=max(float(m.get("duck_db", 6.0)), 0.0),
+            carve_db=min(float(m.get("carve_db", -4.0)), 0.0),
+            carve_lo=max(float(m.get("carve_lo", 200.0)), 20.0),
+            carve_hi=max(float(m.get("carve_hi", 3000.0)), 100.0),
+            hold=max(float(m.get("hold", 2.0)), 0.0),
+            attack=max(float(m.get("attack", 0.25)), 0.02),
+            release=max(float(m.get("release", 2.5)), 0.05),
             intro_gain=min(max(float(m.get("intro_gain", 0.35)), 0.0), 1.0),
             seed=None if m.get("seed") is None else int(m["seed"]),
-            volume_in_pauses=float(m.get("volume_in_pauses", 2.0)),
+            volume_in_pauses=float(m.get("volume_in_pauses", 0.0)),
             strict_cc0_only=bool(m.get("strict_cc0_only", stock.get("strict_cc0_only", False))),
             openverse=bool(m.get("openverse", True)))
 
@@ -165,6 +178,19 @@ def measure_lufs(path: Path, window: tuple[float, float] | None = None) -> float
         return None
     m = re.findall(r"\bI:\s+(-?[0-9.]+) LUFS", err[err.rfind("Summary:"):])
     return float(m[-1]) if m else None
+
+
+def carve(audio: np.ndarray, cfg: MusicCfg, sr: int = SR) -> np.ndarray:
+    """Cut ``cfg.carve_db`` dB over carve_lo..carve_hi Hz (the voice band) so the music masks less.
+
+    Zero-phase: the band (4th-order Butterworth) is scaled by the cut and added back."""
+    if cfg.carve_db >= -0.05 or cfg.carve_hi <= cfg.carve_lo or audio.size == 0:
+        return audio
+    from scipy import signal
+
+    sos = signal.butter(2, [cfg.carve_lo, min(cfg.carve_hi, sr * 0.45)], "bandpass", fs=sr, output="sos")
+    band = signal.sosfiltfilt(sos, audio.astype(np.float64), axis=0)
+    return (audio - (1.0 - 10 ** (cfg.carve_db / 20)) * band).astype(np.float32)
 
 
 def loop_to(x: np.ndarray, n: int, fade: int) -> np.ndarray:
@@ -402,7 +428,7 @@ def signature(ep: Path, cfg: MusicCfg, total: float) -> str:
         if folder.is_dir():
             files += [f"{p.name}:{p.stat().st_size}:{int(p.stat().st_mtime)}"
                       for p in sorted(folder.glob("*")) if p.is_file()]
-    key = json.dumps([cfg.source, cfg.mood, cfg.level_lufs, cfg.seed, cfg.strict_cc0_only,
+    key = json.dumps([cfg.source, cfg.mood, cfg.level_lufs, cfg.carve_db, cfg.carve_lo, cfg.carve_hi, cfg.seed, cfg.strict_cc0_only,
                       cfg.openverse, round(total, 1), files], sort_keys=True)
     return hashlib.sha1(key.encode()).hexdigest()[:16]
 
@@ -491,6 +517,7 @@ def build(ep: Path, cfg: MusicCfg, source: str | None = None, mood: str | None =
         info = {"source": "synth", "title": f"psycho_terminal synth ({mood_name})",
                 "author": "videoMaker procedural synthesizer", "license": "original (generated)",
                 "free_license": True, "synth_seed": seed, "bpm": spec.bpm}
+    audio = carve(audio, cfg)
     audio, lufs = normalise(audio, cfg.level_lufs, work / ".music_tmp.wav")
     (work / ".music_tmp.wav").unlink(missing_ok=True)
     write_wav(work / "music.wav", audio)
@@ -506,27 +533,95 @@ def build(ep: Path, cfg: MusicCfg, source: str | None = None, mood: str | None =
 # --------------------------------------------------------------------------- mixing
 
 
-def mix_filter(cfg: MusicCfg, music_in: str, key_in: str, out: str, lead: float, total: float,
-               stem: str | None = None) -> str:
-    """Filter chain: music (fade in/out, intro ramp, pause boost) ducked by the voice ``key_in``.
+FR = 0.05  # envelope frame (s)
 
-    ``music_in`` is the music input label (e.g. ``2:a``); ``out`` the ducked music label.
-    The compressor threshold sits ~12 dB below typical speech, so ``ratio`` is chosen so that
-    speech lowers the music by about ``duck_db`` (attack 20 ms, release 400 ms).
-    """
-    ratio = min(max(1.0 / max(1.0 - cfg.duck_db / 12.0, 0.05), 1.0), 20.0)
+
+def speech_activity(voice: np.ndarray, sr: int, hold: float) -> np.ndarray:
+    """Boolean speech activity per 50 ms frame: adaptive threshold, gaps < ``hold`` closed."""
+    n = len(voice) // int(FR * sr)
+    fr = int(FR * sr)
+    db = 10 * np.log10(np.mean(voice[: n * fr].reshape(n, fr) ** 2, axis=1) + 1e-12)
+    if n == 0:
+        return np.zeros(0, bool)
+    ref = float(np.percentile(db, 90))
+    act = (db > ref - 18) & (db > -50)
+    idx = np.flatnonzero(act)
+    for a, b in itertools.pairwise(idx):
+        if 1 < b - a <= int(hold / FR):  # short gap between phrases: keep the music ducked
+            act[a:b] = True
+    return act
+
+
+def duck_gain_db(act: np.ndarray, cfg: MusicCfg) -> np.ndarray:
+    """Smooth gain (dB, per frame): -duck_db while speaking, +volume_in_pauses when released.
+    Duck ramps finish exactly at speech onset (look-ahead); releases are slow raised cosines."""
+    n = len(act)
+    hi, lo = cfg.volume_in_pauses, cfg.volume_in_pauses - cfg.duck_db
+    g = np.full(n, hi, np.float64)
+    edges = np.flatnonzero(np.diff(act.astype(np.int8))) + 1
+    if n and act[0]:
+        g[:] = lo
+    cur = lo if (n and act[0]) else hi
+    for e in edges:
+        down = bool(act[e])
+        k = max(int((cfg.attack if down else cfg.release) / FR), 1)
+        start = max(e - k, 0) if down else e
+        stop = min(start + k, n)
+        tgt = lo if down else hi
+        ramp = 0.5 - 0.5 * np.cos(np.linspace(0, np.pi, stop - start))
+        seg_from = g[start - 1] if start > 0 else cur
+        g[start:stop] = seg_from + (tgt - seg_from) * ramp
+        g[stop:] = tgt
+    return g
+
+
+def pumping_db(g: np.ndarray, act: np.ndarray) -> float:
+    """Largest music-gain swing (max-min, dB) inside any 1 s window between the first and the
+    last spoken frame (the intro hand-over and the outro release are not pumping)."""
+    idx = np.flatnonzero(act)
+    if len(idx) == 0:
+        return 0.0
+    seg = g[idx[0]:idx[-1] + 1]
+    w = int(1.0 / FR)
+    if len(seg) <= w:
+        return float(np.ptp(seg))
+    from numpy.lib.stride_tricks import sliding_window_view
+
+    win = sliding_window_view(seg, w)
+    return float(np.max(win.max(axis=1) - win.min(axis=1)))
+
+
+def make_ducked(ep: Path, cfg: MusicCfg, lead: float, total: float,
+                outro: float = 3.0) -> dict[str, Any]:
+    """work/music_ducked.wav = work/music.wav x a gain curve computed from the voice-over."""
+    work = ep / "work"
+    voice = decode(voice_path(ep)).mean(axis=1)
+    sr = SR
+    full = np.concatenate([np.zeros(int(lead * sr), np.float32), voice])
+    act = speech_activity(full, sr, cfg.hold)
+    g = duck_gain_db(act, cfg)
+    music_ = decode(work / "music.wav")
+    t = np.arange(len(music_)) / sr
+    gain = np.interp(t, (np.arange(len(g)) + 0.5) * FR, g, left=g[0] if len(g) else 0.0,
+                     right=g[-1] if len(g) else 0.0)
+    write_wav(work / "music_ducked.wav", music_ * (10 ** (gain / 20))[:, None].astype(np.float32))
+    stats = {"pumping_db": round(pumping_db(g, act), 2),
+             "min_gain_db": round(float(g.min()), 2) if len(g) else 0.0,
+             "max_gain_db": round(float(g.max()), 2) if len(g) else 0.0,
+             "speech_share": round(float(act.mean()), 3) if len(act) else 0.0}
+    write_json(work / "music_duck.json", stats)
+    return stats
+
+
+def mix_filter(cfg: MusicCfg, music_in: str, out: str, lead: float, total: float,
+               stem: str | None = None) -> str:
+    """Filter chain for the already-ducked music: intro ramp, fade in/out (no sidechain)."""
     fin, fout = 3.0, min(4.0, max(total / 4, 1.0))
     ramp = (f"volume='min(1,{cfg.intro_gain:.3f}+{1 - cfg.intro_gain:.3f}*t/{lead:.3f})':eval=frame,"
             if lead > 0 and cfg.intro_gain < 1 else "")
-    boost = 10 ** (cfg.volume_in_pauses / 20)
     chain = (f"[{music_in}]aresample={SR},aformat=channel_layouts=stereo,{ramp}"
-             f"volume={boost:.3f},afade=t=in:st=0:d={fin:.2f},"
-             f"afade=t=out:st={max(total - fout, 0):.3f}:d={fout:.2f}[mm];"
-             # the key is levelled first (hard compression) so the ducking depth does not depend
-             # on how loud each phrase is; the music compressor then sits ~12 dB below its level (-35 dB)
-             f"[{key_in}]acompressor=threshold=0.0316:ratio=20:attack=5:release=120:makeup=1[kk];"
-             f"[mm][kk]sidechaincompress=threshold=0.002:ratio={ratio:.2f}:attack=20:"
-             f"release=400:makeup=1:level_sc=1")
+             f"afade=t=in:st=0:d={fin:.2f},"
+             f"afade=t=out:st={max(total - fout, 0):.3f}:d={fout:.2f}")
     return chain + (f",asplit=2[{out}][{stem}]" if stem else f"[{out}]")
 
 
@@ -541,13 +636,14 @@ def mix_preview(ep: Path, cfg: MusicCfg, seconds: float = 20.0) -> Path:
     start_v = 0.0
     dur = min(seconds, vdur)
     out = work / "music_preview.wav"
+    make_ducked(ep, cfg, lead, float(info["duration"]))
     fc = (f"[0:a]loudnorm=I=-16:TP=-1.5:LRA=11,aresample={SR},adelay={round(lead * 1000)}:all=1,"
-          f"apad=whole_dur={lead + dur:.3f},atrim=0:{lead + dur:.3f},asplit=2[vo][vk];"
-          + mix_filter(cfg, "1:a", "vk", "md", lead, float(info["duration"])) + ";"
+          f"apad=whole_dur={lead + dur:.3f},atrim=0:{lead + dur:.3f},anull[vo];"
+          + mix_filter(cfg, "1:a", "md", lead, float(info["duration"])) + ";"
           "[vo][md]amix=inputs=2:normalize=0:duration=first,alimiter=limit=0.95:level=disabled"
           "[aout]")
     cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-ss", f"{start_v:.2f}",
-           "-t", f"{dur:.2f}", "-i", str(voice), "-i", str(work / "music.wav"),
+           "-t", f"{dur:.2f}", "-i", str(voice), "-i", str(work / "music_ducked.wav"),
            "-filter_complex", fc, "-map", "[aout]", "-t", f"{lead + dur:.2f}", "-ar", str(SR),
            "-ac", "2", str(out)]
     r = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=300)
@@ -567,7 +663,7 @@ def _read_mono(path: Path) -> tuple[np.ndarray, int]:
 
 
 def qa_music(voice_stem: Path, music_stem: Path, final_lufs: float | None = None,
-             max_delta_db: float = -12.0) -> dict[str, Any]:
+             max_delta_db: float = -18.0) -> dict[str, Any]:
     """Speech intelligibility: per 100 ms frame where the voice speaks, music dB - voice dB."""
     v, sr = _read_mono(voice_stem)
     m, _ = _read_mono(music_stem)
@@ -583,13 +679,18 @@ def qa_music(voice_stem: Path, music_stem: Path, final_lufs: float | None = None
     ref = float(np.percentile(v_db, 90)) if n else 0.0
     speech = (v_db > ref - 15) & (v_db > -45) if n else np.zeros(0, bool)
     deltas = (m_db - v_db)[speech].tolist()
+    pooled = None
+    if speech.any():  # energy-weighted: how much music power sits under the voice power
+        pooled = 10 * np.log10(float(np.sum(10 ** (m_db[speech] / 10)))
+                               / float(np.sum(10 ** (v_db[speech] / 10))))
     rep: dict[str, Any] = {
         "voice_lufs": measure_lufs(voice_stem), "music_lufs": measure_lufs(music_stem),
         "final_lufs": final_lufs, "speech_blocks": len(deltas),
+        "music_vs_voice_db_pooled": None if pooled is None else round(float(pooled), 1),
         "music_vs_voice_db_mean": round(float(np.mean(deltas)), 1) if deltas else None,
         "music_vs_voice_db_p95": round(float(np.percentile(deltas, 95)), 1) if deltas else None,
         "max_allowed_db": max_delta_db}
-    rep["passed"] = not deltas or rep["music_vs_voice_db_p95"] <= max_delta_db
+    rep["passed"] = bool(pooled is None or pooled <= max_delta_db)
     return rep
 
 

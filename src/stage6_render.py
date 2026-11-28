@@ -1109,7 +1109,7 @@ def run(episode_id: str, work_dir: Path, draft: bool = False) -> dict[str, Any]:
             sfx = branding_sound.write_wav(tmp_dir / "branding_sfx.wav", intro_dur, video_dur,
                                            outro_dur, s.audio_rate)
         music_mix = _music_input(config, work_dir, ep_dir, video_dur + intro_dur + outro_dur,
-                                 draft, warnings)
+                                 draft, warnings, intro_dur, outro_dur)
         stems = (tmp_dir / "stem_voice.wav", tmp_dir / "stem_music.wav") if music_mix else None
         _mux(concat_file, audio_path, output_path, video_dur, s, events, warnings,
              lead=intro_dur, tail_extra=outro_dur, sfx=sfx, music_mix=music_mix, stems=stems)
@@ -1315,10 +1315,17 @@ def _finish_music_qa(mqa: dict[str, Any], qa: dict[str, Any], out_dir: Path,
                     "license": meta.get("license"), "level_lufs": cfg.level_lufs})
     except (OSError, ValueError):
         pass
+    try:
+        mqa.update(read_json(out_dir.parent / "work" / "music_duck.json"))
+    except (OSError, ValueError):
+        pass
     qa["music"] = mqa
+    if mqa.get("pumping_db", 0) > max(3.0, cfg.duck_db + 0.5):
+        qa["issues"].append(f"music pumping: gain swings {mqa['pumping_db']} dB within 1 s")
+        qa["passed"] = False
     if not mqa["passed"]:
         qa["issues"].append(
-            f"music too loud under speech: p95 {mqa['music_vs_voice_db_p95']} dB vs voice "
+            f"music too loud under speech: {mqa['music_vs_voice_db_pooled']} dB vs voice "
             f"(limit {mqa['max_allowed_db']} dB)")
         qa["passed"] = False
     write_json(out_dir / "qa_report.json", qa)
@@ -1668,7 +1675,7 @@ def _mix_clip_audio(audio: Path, events: list[ClipAudio], out: Path, video_dur: 
 
 
 def _music_input(config: dict[str, Any], work_dir: Path, ep_dir: Path, total: float,
-                 draft: bool, warnings: list[str]) -> tuple[Path, music.MusicCfg] | None:
+                 draft: bool, warnings: list[str], lead: float = 0.0, outro: float = 3.0) -> tuple[Path, music.MusicCfg] | None:
     """``work/music.wav`` when the music stage is enabled and has produced a track."""
     cfg = music.MusicCfg.from_config(config)
     if draft or cfg.off:
@@ -1682,6 +1689,14 @@ def _music_input(config: dict[str, Any], work_dir: Path, ep_dir: Path, total: fl
     if not track.is_file():
         return None
     dur = probe_duration(track) or 0.0
+    try:
+        stats = music.make_ducked(ep_dir, cfg, lead, total, outro)
+        track = work_dir / "music_ducked.wav"
+        if stats["pumping_db"] > max(3.0, cfg.duck_db + 0.5):
+            warnings.append(f"music gain swings {stats['pumping_db']} dB within 1 s (pumping)")
+    except (OSError, ValueError) as e:
+        warnings.append(f"music ducking failed ({e}); rendered without music")
+        return None
     if abs(dur - total) > 1.0:
         warnings.append(f"music.wav is {dur:.1f}s but the cut is {total:.1f}s (stale?); "
                         "run `music <ep>` - it is looped/trimmed meanwhile")
@@ -1731,8 +1746,8 @@ def _mux(concat_file: Path, audio: Path, output: Path, video_dur: float,
         parts = [f"[1:a]{af}[vo0]"]
         labels = ["vo"]
         if music_mix is not None:
-            parts.append("[vo0]" + ("asplit=3[vo][vk][vst]" if stems else "asplit=2[vo][vk]"))
-            parts.append(music.mix_filter(music_mix[1], f"{idx}:a", "vk", "md", lead, video_dur,
+            parts.append("[vo0]" + ("asplit=2[vo][vst]" if stems else "anull[vo]"))
+            parts.append(music.mix_filter(music_mix[1], f"{idx}:a", "md", lead, video_dur,
                                           "mst" if stems else None))
             sfx_in += ["-i", str(music_mix[0])]
             labels.append("md")

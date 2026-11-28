@@ -9,7 +9,7 @@
 | `index` | 2 Index (+ upscale, stabilize, letterbox) | `stage2_index_assets.py`, `upscale.py`, `stabilize.py`, `letterbox.py` | `work/local_assets.json`, `upscaled/`, `stabilized/` |
 | `semantic` | 2a Semantic index | `semantic_index.py`, `semantic.py` | `work/semantic_index.json/.npy`, `semantic/` |
 | `prefetch` | 2b Stock pool | `stage_prefetch.py` | `work/stock_pool.json`, `stock_cache/` |
-| `plan` | 3 Planner | `stage3_plan_scenes.py`, `semantic_planner.py`, `assignment.py`, `variety.py`, `callouts.py`, `transitions.py` | `work/scene_plan.json` |
+| `plan` | 3 Planner | `stage3_plan_scenes.py`, `semantic_planner.py`, `assignment.py`, `variety.py`, `callouts.py`, `transitions.py`, `polish.py`, `decision.py`, `decision_planner.py` (optional) | `work/scene_plan.json` |
 | `fetch` | 4 Stock + audit | `stage4_fetch_stock.py`, `stock_video.py` | `out/licenses_audit.json` |
 | `cutouts` | 5 Cutouts | `stage5_cutouts.py`, `overlays.py`, `graphics.py` | `work/cutouts/`, `cutouts_manifest.json` |
 | `music` | 5b Music | `music.py`, `music_synth.py` | `work/music.wav`, `music.json`, `music_audit.json` |

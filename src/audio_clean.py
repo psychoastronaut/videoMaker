@@ -34,7 +34,13 @@ AUDIO_EXTS = ("wav", "mp3", "m4a", "flac", "ogg", "aac", "opus")
 
 # per-preset knobs: highpass Hz, afftdn noise reduction dB, gate threshold, mud cut dB,
 # presence boost dB, deesser intensity, compressor ratio, silence threshold dB
+# optional keys (defaults in PRESET_OPT): notch_voice_cut = max notch depth (dB) for lines between
+# 85 and 1000 Hz (inside voice harmonics: a deep notch there tints the timbre), air = high-shelf dB
+# at 8 kHz, exp_db = max expander reduction, mix = RNNoise mix at strength 0.6 (scaled by strength)
 PRESETS: dict[str, dict[str, float]] = {
+    "natural": {"hp": 70, "nr": 8, "gate": 0.01, "mud": 0.0, "pres": 1.0, "deess": 0.3,
+                "ratio": 2.0, "sil_db": -50, "notch_voice_cut": 9, "air": 1.5, "exp_db": 10,
+                "mix": 0.45},
     "gentle": {"hp": 70, "nr": 8, "gate": 0.0, "mud": -1.5, "pres": 1.5, "deess": 0.3,
                "ratio": 2.0, "sil_db": -50},
     "podcast": {"hp": 80, "nr": 14, "gate": 0.01, "mud": -3.0, "pres": 2.5, "deess": 0.5,
@@ -43,8 +49,9 @@ PRESETS: dict[str, dict[str, float]] = {
                    "ratio": 4.0, "sil_db": -40},
 }
 
+PRESET_OPT = {"notch_voice_cut": 26.0, "air": 0.0, "exp_db": 14.0, "mix": 0.65}
 DEFAULTS: dict[str, Any] = {
-    "enabled": "auto", "preset": "podcast", "target_lufs": -16.0, "true_peak": -1.5,
+    "enabled": "auto", "preset": "natural", "target_lufs": -16.0, "true_peak": -1.5,
     "max_pause": 0.8, "keep_pause": 0.35, "rnnoise_model": None, "hum_hz": 60,
     "denoise": "auto", "denoise_strength": 0.6, "notch": "auto", "expander_db": 14,
 }
@@ -87,6 +94,10 @@ def is_enabled(episode_id: str, cfg: dict[str, Any] | None = None) -> bool:
     return bool(en)
 
 
+def _opt(preset: str, key: str) -> float:
+    return float(PRESETS[preset].get(key, PRESET_OPT[key]))
+
+
 def _strength(s: dict[str, Any]) -> float:
     return min(max(float(s.get("denoise_strength", 0.6)), 0.0), 1.0)
 
@@ -106,7 +117,7 @@ def denoise_filters(s: dict[str, Any], prof: dict[str, Any] | None = None) -> li
             f.append(f"afftdn=nr={nr:.1f}:nf=-45:tn=1")
     model = s.get("rnnoise_model")
     if mode in ("auto", "rnnoise") and model and Path(str(model)).expanduser().is_file():
-        mix = min(max(st * 0.65, 0.1), 1.0)
+        mix = min(max(st / 0.6 * _opt(s['preset'], 'mix'), 0.1), 1.0)
         f += ["aresample=48000", f"arnndn=m={Path(str(model)).expanduser()}:mix={mix:.2f}"]
     elif mode == "rnnoise" and not f:  # no model available: degrade to afftdn, never to nothing
         f.append(f"afftdn=nr={min(max(p['nr'] * st / 0.6, 4.0), 20.0):.1f}:nf=-45:tn=1")
@@ -125,7 +136,8 @@ def gate_filter(s: dict[str, Any], prof: dict[str, Any] | None = None) -> str | 
     elif s.get("noise_floor_db") is not None:
         thr = 10 ** ((float(s["noise_floor_db"]) + 6 + 10 * p["gate"]) / 20)
     thr = min(max(thr, 0.0005), 0.1)
-    rng = 10 ** (-abs(float(s.get("expander_db", 14))) / 20)
+    exp_db = min(abs(float(s.get("expander_db", 14))), _opt(s["preset"], "exp_db"))
+    rng = 10 ** (-exp_db / 20)
     return f"agate=threshold={thr:.5f}:ratio=2.5:attack=15:release=300:range={rng:.4f}:knee=2.5"
 
 
@@ -159,9 +171,12 @@ def build_filter(s: dict[str, Any], measured: dict[str, str] | None = None, loud
         sil = min(max(sil, float(prof["floor_db"]) + 6), -30)
     elif s.get("noise_floor_db") is not None:
         sil = min(max(sil, float(s["noise_floor_db"]) + 6), -30)
+    if p["mud"]:
+        f.append(f"equalizer=f=250:t=q:w=1:g={p['mud']:g}")
+    f.append(f"equalizer=f=4000:t=q:w=0.8:g={p['pres']:g}")
+    if _opt(s["preset"], "air"):  # gentle air shelf: recovers what denoise takes above 6 kHz
+        f.append(f"highshelf=f=8000:g={_opt(s['preset'], 'air'):g}")
     f += [
-        f"equalizer=f=250:t=q:w=1:g={p['mud']:g}",
-        f"equalizer=f=4000:t=q:w=0.8:g={p['pres']:g}",
         f"deesser=i={p['deess']:g}:m=0.5:f=0.5",
         # no makeup: the only gain stage is loudnorm, after denoise and expander
         f"acompressor=threshold=-20dB:ratio={p['ratio']:g}:attack=15:release=200:makeup=1",
@@ -282,6 +297,7 @@ def analyze_noise(src: Path, s: dict[str, Any]) -> tuple[dict[str, Any], np.ndar
         peaks = []
     else:
         peaks = [q for q in aa.find_tonal_peaks(f, pdb) if q["prominence_db"] >= 9.0]
+        peaks = aa.limit_voice_zone(peaks, x, _opt(s["preset"], "notch_voice_cut"))
     db = aa.frame_db(x)
     floor = float(np.mean(db[noise])) if noise.any() else float(np.percentile(db, 10))
     prof = {"notches": aa.notch_filters(peaks), "peaks": peaks, "floor_db": round(floor, 2),
@@ -440,7 +456,7 @@ def ab_windows(x: np.ndarray, n: int = 3, length: float = 10.0) -> list[float]:
 
 
 def make_ab(src: Path, out_dir: Path, s: dict[str, Any], n: int = 3, length: float = 10.0) -> dict[str, Any]:
-    """original.wav / atual.wav / novo.wav (n x 10 s excerpts with voice, same timeline, level
+    """original.wav / atual.wav / podcast.wav / novo.wav (n x 10 s excerpts with voice, same timeline, level
     matched, silence shortening off) and before/after spectrogram PNGs, in ``out_dir``."""
     out_dir.mkdir(parents=True, exist_ok=True)
     s = dict(s)
@@ -450,16 +466,21 @@ def make_ab(src: Path, out_dir: Path, s: dict[str, Any], n: int = 3, length: flo
     prof, x = analyze_noise(src, s)
     starts = ab_windows(x, n, length)
     full = {"original": out_dir / "_original_full.wav", "atual": out_dir / "_atual_full.wav",
-            "novo": out_dir / "_novo_full.wav"}
+            "podcast": out_dir / "_podcast_full.wav", "novo": out_dir / "_novo_full.wav"}
     _vloud(src, MONO, full["original"], s)
     tmp = out_dir / "_legacy.wav"
     render(src, tmp, s, prof, shorten=False, legacy=True)
     _vloud(tmp, "anull", full["atual"], s)
+    tmp3 = out_dir / "_podcast.wav"  # the previous default preset, same notches/denoise rules
+    sp = {**s, "preset": "podcast"}
+    prof_p, _ = analyze_noise(src, sp)
+    render(src, tmp3, sp, prof_p, shorten=False)["_dn"].unlink(missing_ok=True)
+    _vloud(tmp3, "anull", full["podcast"], s)
     tmp2 = out_dir / "_new.wav"
     info = render(src, tmp2, s, prof, shorten=False)
     info.pop("_dn").unlink(missing_ok=True)
     _vloud(tmp2, "anull", full["novo"], s)
-    for t in (tmp, tmp2):
+    for t in (tmp, tmp2, tmp3):
         t.unlink(missing_ok=True)
     for name, f in full.items():
         parts, labels = [], []
@@ -474,7 +495,8 @@ def make_ab(src: Path, out_dir: Path, s: dict[str, Any], n: int = 3, length: flo
                  "showspectrumpic=s=1400x520:legend=1:fscale=log:scale=log:start=40:stop=8000",
                  "-frames:v", "1", str(out_dir / f"spectrogram_{name}.png")])
     meta = {"windows_start_s": starts, "window_s": length, "gap_between_clips_s": 1,
-            "note": "same timeline in all three files, level-matched, silence shortening off"}
+            "novo_preset": s["preset"],
+            "note": "same timeline in all files (original, atual = legacy chain, podcast = previous preset, novo = configured preset), level-matched, silence shortening off"}
     write_json(out_dir / "ab.json", meta)
     return meta
 

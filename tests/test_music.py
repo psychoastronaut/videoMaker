@@ -125,7 +125,7 @@ def test_offline_fallback_to_synth_and_audit(tmp_path: Path) -> None:
     audit = read_json(ep / "out" / "licenses_audit.json")["music"]
     assert audit["source"] == "synth" and "original" in audit["license"]
     meta = read_json(ep / "work" / "music.json")
-    assert meta["level_lufs"] == -22.0 and meta["mood"] in music_synth.MOODS
+    assert meta["level_lufs"] == -29.0 and meta["mood"] in music_synth.MOODS
     assert music.stale_reason(ep, ep / "work") is None
     (ep / "raw" / "voiceover.wav").touch()
     assert music.stale_reason(ep, ep / "work") == "voiceover newer than music"
@@ -155,24 +155,49 @@ def test_loop_crossfade_covers_duration() -> None:
 # --------------------------------------------------------------------------- mixing / QA
 
 
-def test_ducking_lowers_music_under_voice(tmp_path: Path) -> None:
+def _speech(pattern: list[tuple[float, bool]], sr: int = 48000) -> np.ndarray:
+    parts = []
+    for dur, on in pattern:
+        t = np.arange(int(dur * sr)) / sr
+        parts.append(np.sin(2 * np.pi * 300 * t) * 0.25 if on else np.zeros_like(t))
+    return np.concatenate(parts)
+
+
+def test_short_pauses_do_not_move_the_music_gain() -> None:
+    cfg = music.MusicCfg()
+    pat = [(0.5, False)] + [x for _ in range(6) for x in ((1.2, True), (0.4 + 0.07 * _, False))]
+    act = music.speech_activity(_speech(pat), 48000, cfg.hold)
+    g = music.duck_gain_db(act, cfg)
+    mid = g[int(2.0 / music.FR): int((len(g) * music.FR - 1.0) / music.FR)]
+    assert float(np.ptp(mid)) <= 1.0  # constant (+-0.5 dB) across 0.4-0.8 s gaps
+    assert abs(float(mid.mean()) + cfg.duck_db) <= 1.0
+    assert music.pumping_db(g, act) <= 1.0 + 1e-6
+
+
+def test_long_pause_releases_smoothly_and_ducks_again() -> None:
+    cfg = music.MusicCfg()
+    act = music.speech_activity(_speech([(3, True), (4, False), (3, True)]), 48000, cfg.hold)
+    g = music.duck_gain_db(act, cfg)
+    at = lambda sec: float(g[int(sec / music.FR)])
+    assert abs(at(2.5) + cfg.duck_db) < 0.2 and abs(at(6.9)) < 0.5 + cfg.duck_db  # ducked / rising
+    assert at(6.0) > -cfg.duck_db + 1.0  # rose in the pause
+    assert at(9.5) < -cfg.duck_db + 0.5  # ducked again under the second phrase
+    assert float(np.max(np.abs(np.diff(g)))) < 2.5  # no steps (a step would be 6 dB in 50 ms)
+
+
+def test_ducked_stem_is_quieter_under_voice_measured_by_ffmpeg(tmp_path: Path) -> None:
+    cfg = music.MusicCfg(duck_db=6.0, intro_gain=1.0, attack=0.2, release=1.0)
     sr = 48000
+    voice = _speech([(6, True), (6, False)])
+    act = music.speech_activity(voice, sr, cfg.hold)
+    g = music.duck_gain_db(act, cfg)
     t = np.arange(12 * sr) / sr
-    voice = np.where(t < 6, np.sin(2 * np.pi * 300 * t) * 0.25, 0.0)  # speech 0-6 s, pause 6-12
-    music_sig = np.sin(2 * np.pi * 110 * t) * 0.1
-    _stereo_wav(tmp_path / "voice.wav", np.stack([voice, voice], 1))
-    _stereo_wav(tmp_path / "music.wav", np.stack([music_sig, music_sig], 1))
-    cfg = music.MusicCfg(intro_gain=1.0, volume_in_pauses=0.0, duck_db=9.0)
-    fc = ("[0:a]aformat=channel_layouts=stereo[vk];"
-          + music.mix_filter(cfg, "1:a", "vk", "md", 0.0, 12.0) + ";[md]anull[out]")
-    out = tmp_path / "ducked.wav"
-    subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", str(tmp_path / "voice.wav"), "-i",
-                    str(tmp_path / "music.wav"), "-filter_complex", fc, "-map", "[out]", "-t", "12",
-                    str(out)], check=True)
-    under_voice = _rms_db(out, 2.0, 3.0)
-    in_pause = _rms_db(out, 8.5, 2.5)  # after the 400 ms release and before the 4 s fade-out
-    assert in_pause - under_voice >= 6.0, (under_voice, in_pause)  # ducking measured by ffmpeg
-    assert under_voice < _rms_db(tmp_path / "voice.wav", 2.0, 3.0) - 12  # always far below voice
+    gain = np.interp(t, (np.arange(len(g)) + 0.5) * music.FR, g)
+    mus = (np.sin(2 * np.pi * 110 * t) * 0.1 * 10 ** (gain / 20))[:, None].repeat(2, 1)
+    _stereo_wav(tmp_path / "d.wav", mus)
+    under_voice = _rms_db(tmp_path / "d.wav", 2.0, 3.0)
+    in_pause = _rms_db(tmp_path / "d.wav", 9.0, 2.0)
+    assert 4.5 <= in_pause - under_voice <= 7.5, (under_voice, in_pause)
 
 
 def test_qa_music_flags_loud_music(tmp_path: Path) -> None:
@@ -186,7 +211,7 @@ def test_qa_music_flags_loud_music(tmp_path: Path) -> None:
     _stereo_wav(tmp_path / "ml.wav", np.stack([loud, loud], 1))
     ok = music.qa_music(tmp_path / "v.wav", tmp_path / "mq.wav")
     bad = music.qa_music(tmp_path / "v.wav", tmp_path / "ml.wav")
-    assert ok["passed"] and ok["music_vs_voice_db_p95"] <= -12
+    assert ok["passed"] and ok["music_vs_voice_db_p95"] <= -18
     assert not bad["passed"]
 
 
@@ -202,7 +227,7 @@ def test_mux_with_music_end_to_end(tmp_path: Path) -> None:
     voice = np.where(t < 4, np.sin(2 * np.pi * 300 * t) * 0.3, 0.0)
     _stereo_wav(tmp_path / "vo.wav", np.stack([voice, voice], 1))
     mus = music_synth.synth(dur + 2, 4, "calm")
-    _stereo_wav(tmp_path / "music.wav", mus[: int((dur + 2) * sr)])
+    _stereo_wav(tmp_path / "music.wav", mus[: int((dur + 2) * sr)] * 0.06)
     subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i",
                     f"color=c=black:s=64x64:r=30:d={dur + 2}", "-c:v", "libx264", "-pix_fmt",
                     "yuv420p", str(tmp_path / "v.mp4")], check=True)

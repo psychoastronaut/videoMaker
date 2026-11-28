@@ -114,13 +114,33 @@ def find_tonal_peaks(f: np.ndarray, pdb: np.ndarray, fmin: float = 45, fmax: flo
     return out[:max_peaks]
 
 
+VOICE_ZONE = (85.0, 1000.0)  # fundamentals/low harmonics of speech: notches here tint the timbre
+
+
+def limit_voice_zone(peaks: list[dict[str, float]], x: np.ndarray, voice_cut_db: float) -> list[dict[str, float]]:
+    """Mark each peak inside the voice zone with ``max_cut_db`` (depth cap) and a higher Q.
+
+    A line is only worth a (shallow) notch there if it stays stationary: its excess over the
+    local floor in the quiet frames must be at least 12 dB. Outside the zone the cap is 26 dB."""
+    out = []
+    for q in peaks:
+        q = dict(q)
+        if VOICE_ZONE[0] <= q["freq_hz"] <= VOICE_ZONE[1] and voice_cut_db < 26:
+            if q["prominence_db"] < 12.0:
+                continue
+            q["max_cut_db"] = voice_cut_db
+            q["width_hz"] = min(q["width_hz"], 8.0)
+        out.append(q)
+    return out
+
+
 def notch_filters(peaks: list[dict[str, float]], max_cut_db: float = 26.0) -> list[str]:
     """ffmpeg ``equalizer`` notches (Q ~ f / width, clamped to 4..40) for each tonal peak."""
     out = []
     for p in peaks:
         f = p["freq_hz"]
         bw = min(max(p["width_hz"] * 0.8, 5.0), f / 4)  # narrow: Welch window already widens the line
-        gain = min(p["prominence_db"] + 6, max_cut_db)
+        gain = min(p["prominence_db"] + 6, p.get("max_cut_db", max_cut_db))
         out.append(f"equalizer=f={f:g}:t=h:w={bw:.1f}:g=-{gain:.1f}")
     return out
 

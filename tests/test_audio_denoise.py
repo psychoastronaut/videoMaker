@@ -55,7 +55,7 @@ def test_notch_filters_format():
 
 
 def test_chain_order_and_modes():
-    s = audio_clean.settings({"audio": {"rnnoise_model": __file__}})
+    s = audio_clean.settings({"audio": {"rnnoise_model": __file__, "preset": "podcast"}})
     prof = {"notches": ["equalizer=f=300:t=h:w=9:g=-20"], "peaks": [], "gate_db": -60.0,
             "floor_db": -65.0}
     f = audio_clean.build_filter(s, prof=prof)
@@ -105,6 +105,6 @@ def test_ab_outputs(hermetic_env):
     _synth(ep / "raw" / "voiceover.wav")
     audio_clean.run("ab", ep / "work", ab=True)
     d = ep / "work" / "audio_ab"
-    for n in ("original", "atual", "novo"):
+    for n in ("original", "atual", "podcast", "novo"):
         assert (d / f"{n}.wav").stat().st_size > 10_000
         assert (d / f"spectrogram_{n}.png").is_file()
